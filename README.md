@@ -127,7 +127,7 @@ scale_employee_001 / employee123
 
 - **Week 5 (Automated Testing):** `tasks`, `finance`, `warehouse`, `integrations` модульдеріне API тесттері қосылды.
 - **Coverage gate:** CI ішінде `pytest-cov` арқылы coverage есептеледі, `--cov-fail-under=40` енгізілді.
-- **Week 6 (Security/CD):** DRF rate limiting (`THROTTLE_ANON_RATE`, `THROTTLE_USER_RATE`) қосылды.
+- **Week 6 (Security/CD):** DRF rate limiting (`THROTTLE_ANON_RATE`, `THROTTLE_USER_RATE`, `THROTTLE_AUTH_LOGIN_RATE`, `THROTTLE_AUTH_REGISTER_RATE`) қосылды.
 - **CD pipeline:** `.github/workflows/cd.yml` арқылы `main` branch push және manual dispatch кезінде deploy сценарийі іске қосылады (SSH secrets қажет).
 
 Негізгі verification endpoint-тер:
@@ -140,6 +140,13 @@ POST /api/v1/ai/chat/
 GET  /api/v1/integrations/external-employees/
 POST /api/v1/integrations/external-employees/
 POST /api/v1/integrations/webhooks/external/
+```
+
+Webhook қолтаңбасы (security):
+
+```text
+X-Nexus-Timestamp: <unix_timestamp>
+X-Nexus-Signature: sha256=<hmac_sha256(timestamp + "." + raw_body, secret)>
 ```
 
 ## Ollama AI көмекші
@@ -243,23 +250,26 @@ docker compose -f docker-compose.prod.yml --env-file .env.production logs backen
 docker compose -f docker-compose.prod.yml --env-file .env.production logs nginx --tail 100
 ```
 
-## Дамыту фазалары
+## Жоба статусы
 
-1. ✅ Фаза 0 — Фундамент (Docker, apps, JWT, UI shell)
-2. ✅ Фаза 1 — Auth (register, AuthGuard, рөл бойынша меню)
-3. ✅ Фаза 2–5 (негізгі UI) — Employees, Tasks workflow, Warehouse, Finance
-4. ✅ Фаза 6 — Recharts, monthly finance, security logs (admin)
-5. ✅ HR create (admin), Warehouse in/out, Email on new task (Celery)
-6. ✅ Task Workflow Pro — detail page, comments, activity history, approve/reject logic
-7. ✅ Kanban Board — Assigned / In Progress / Review / Approved / Rejected
-8. ✅ Notification Center — bell dropdown, unread count, task workflow events
-9. ✅ Warehouse + Finance — stock movement validation, auto income/expense, product detail history
-10. ✅ Analytics & Reports — KPI, monthly finance, CSV exports + Print/PDF
-11. ✅ HR Module Pro — employee detail, structure management, salary visibility
-12. ✅ UI Polish — toast notifications, reusable loading/empty states, confirm dialog foundation
-13. ✅ Production readiness — prod compose, Nginx, env template, healthcheck, backup
-14. ✅ Finance Pro — category breakdown, filters, edit/delete, monthly cashflow
-15. ⏳ Келесі — Telegram, advanced monitoring
+NexusERP қазіргі күйі:
+
+- ✅ **Week 1–4** толық орындалған (архитектура, DB/кэш, background jobs, integrations)
+- ✅ **Week 5** орындалған (backend API тесттер + CI coverage gate)
+- ✅ **Week 6** орындалған (production-like deploy, rate limit, CD workflow)
+- ✅ **Week 7** орындалған (presentation, demo script, defense Q&A)
+
+Қазіргі функционал:
+
+- Толық ERP модульдері: қызметкерлер, тапсырмалар, қойма, қаржы, аналитика/есеп, хабарламалар, интеграциялар, AI көмекші.
+- Рөлдік модель толық іске асқан: admin/manager/employee, manager — department scope.
+- Production-ready инфрақұрылым: `docker-compose.prod.yml`, Nginx reverse proxy, backup script, CI/CD workflow.
+
+Келесі даму идеялары (міндетті емес, post-course roadmap):
+
+- Telegram интеграциясы
+- Мониторинг және алертинг (metrics + logs)
+- Қосымша e2e тесттер
 
 ## Лицензия
 
