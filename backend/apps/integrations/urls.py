@@ -1,6 +1,9 @@
 import hmac
+import hashlib
+import time
 
 from django.conf import settings
+from django.core.cache import cache
 from django.urls import path
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -65,16 +68,43 @@ class ExternalWebhookView(APIView):
     def post(self, request):
         secret = getattr(settings, "EXTERNAL_WEBHOOK_SECRET", "")
         signature = request.headers.get("X-Nexus-Signature", "")
-        if secret and not hmac.compare_digest(signature, secret):
-            return Response({"success": False, "detail": "Invalid webhook signature."}, status=403)
+        timestamp = request.headers.get("X-Nexus-Timestamp", "")
+        if secret:
+            if not timestamp:
+                return Response({"success": False, "detail": "Missing webhook timestamp."}, status=403)
+            try:
+                ts_int = int(timestamp)
+            except ValueError:
+                return Response({"success": False, "detail": "Invalid webhook timestamp."}, status=403)
+            if abs(int(time.time()) - ts_int) > 300:
+                return Response({"success": False, "detail": "Webhook timestamp expired."}, status=403)
+
+            # Replay protection: identical signature+timestamp can be used only once.
+            replay_key = f"integrations:webhook:seen:{timestamp}:{signature}"
+            if cache.get(replay_key):
+                return Response({"success": False, "detail": "Webhook replay detected."}, status=403)
+
+            body = request.body or b""
+            digest = hmac.new(
+                secret.encode("utf-8"),
+                f"{timestamp}.".encode("utf-8") + body,
+                hashlib.sha256,
+            ).hexdigest()
+            expected = f"sha256={digest}"
+            if not hmac.compare_digest(signature, expected):
+                return Response({"success": False, "detail": "Invalid webhook signature."}, status=403)
+            cache.set(replay_key, True, 600)
 
         event_type = request.data.get("event", "unknown")
         payload = request.data.get("payload", {})
+        cache_key = f"integrations:webhook:last:{event_type}"
+        cache.set(cache_key, {"event": event_type, "payload": payload}, 3600)
         return Response(
             {
                 "success": True,
                 "event": event_type,
                 "processed": True,
+                "cache_key": cache_key,
                 "payload_keys": sorted(payload.keys()) if isinstance(payload, dict) else [],
             },
             status=status.HTTP_202_ACCEPTED,

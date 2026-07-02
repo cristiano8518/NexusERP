@@ -134,7 +134,7 @@ export default function TasksPage() {
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        "Workflow ережесін тексеріңіз.";
+        "Жұмыс процесі ережесін тексеріңіз.";
       toast.error("Статус өзгермеді", msg);
     }
   }
@@ -159,7 +159,7 @@ export default function TasksPage() {
     <div>
       <PageHeader
         title="Тапсырмалар"
-        description="Manager → Employee → Approval бизнес процесі"
+        description="Менеджер → Қызметкер → Бекіту бизнес процесі"
         action={
           isManager ? (
             <button
@@ -187,19 +187,19 @@ export default function TasksPage() {
           <p className="mt-1 text-2xl font-bold text-emerald-300">{stats.done}</p>
         </div>
         <div className="glass-card p-4">
-          <p className="text-sm text-gray-400">Deadline өтті</p>
+          <p className="text-sm text-gray-400">Мерзімі өтті</p>
           <p className="mt-1 text-2xl font-bold text-red-300">{stats.overdue}</p>
         </div>
       </div>
 
       <div className="mb-6 grid gap-3 md:grid-cols-2">
         <div className="glass-card p-4 text-sm text-gray-300">
-          <span className="font-semibold text-cyan-200">Manager/Admin:</span>{" "}
-          тапсырма құрады, өзгертеді, өшіреді және employee жіберген жұмысты бекітеді/қайтарады.
+          <span className="font-semibold text-cyan-200">Менеджер/Әкімші:</span>{" "}
+          тапсырма құрады, өзгертеді, өшіреді және қызметкер жіберген жұмысты бекітеді немесе қайтарады.
         </div>
         <div className="glass-card p-4 text-sm text-gray-300">
-          <span className="font-semibold text-emerald-200">Employee:</span>{" "}
-          тек өзіне берілген тапсырманы көреді, progress жаңартады, бастайды және тексеруге жібереді.
+          <span className="font-semibold text-emerald-200">Қызметкер:</span>{" "}
+          тек өзіне берілген тапсырманы көреді, прогресті жаңартады, бастайды және тексеруге жібереді.
         </div>
       </div>
 
@@ -210,7 +210,7 @@ export default function TasksPage() {
               {editingTask ? "Тапсырманы өзгерту" : "Жаңа тапсырма"}
             </h3>
             <p className="text-sm text-gray-400">
-              Manager тапсырманың атауын, орындаушысын, deadline және приоритетін басқарады.
+              Менеджер тапсырманың атауын, орындаушысын, мерзімін және басымдығын басқарады.
             </p>
           </div>
           <input
@@ -314,7 +314,7 @@ export default function TasksPage() {
                     <span>Орындаушы: {task.assignee_name || "—"}</span>
                     {task.deadline && (
                       <span className={task.is_overdue ? "text-red-300" : ""}>
-                        Deadline: {new Date(task.deadline).toLocaleString("kk-KZ")}
+                        Мерзім: {new Date(task.deadline).toLocaleString("kk-KZ")}
                       </span>
                     )}
                   </div>
@@ -322,7 +322,7 @@ export default function TasksPage() {
                 <div className="flex flex-wrap gap-2">
                   <Badge label={STATUS_LABELS[task.status] ?? task.status} variant={task.status} />
                   <Badge label={PRIORITY_LABELS[task.priority] ?? task.priority} variant={task.priority} />
-                  {task.is_overdue && <Badge label="Overdue" variant="rejected" />}
+                  {task.is_overdue && <Badge label="Мерзімі өтті" variant="rejected" />}
                 </div>
               </div>
               <div className="mt-4">

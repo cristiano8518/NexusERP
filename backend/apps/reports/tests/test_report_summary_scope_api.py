@@ -1,0 +1,51 @@
+from decimal import Decimal
+
+import pytest
+from rest_framework import status
+
+from apps.warehouse.models import Category, Product, StockMovement
+
+
+@pytest.mark.django_db
+def test_manager_report_summary_warehouse_is_department_scoped(api_client, sales_manager, it_manager):
+    sales_user, _ = sales_manager
+    it_user, _ = it_manager
+    category = Category.objects.create(name="Report Cat")
+    sales_product = Product.objects.create(
+        sku="RP-SALES-1",
+        name="Sales Report Product",
+        category=category,
+        quantity=Decimal("2"),
+        min_stock_level=Decimal("2"),
+        price=Decimal("250"),
+    )
+    it_product = Product.objects.create(
+        sku="RP-IT-1",
+        name="IT Report Product",
+        category=category,
+        quantity=Decimal("8"),
+        min_stock_level=Decimal("2"),
+        price=Decimal("250"),
+    )
+    StockMovement.objects.create(
+        product=sales_product,
+        movement_type=StockMovement.MovementType.IN,
+        quantity=Decimal("1"),
+        unit_price=Decimal("250"),
+        created_by=sales_user,
+    )
+    StockMovement.objects.create(
+        product=it_product,
+        movement_type=StockMovement.MovementType.IN,
+        quantity=Decimal("1"),
+        unit_price=Decimal("250"),
+        created_by=it_user,
+    )
+
+    api_client.force_authenticate(sales_user)
+    response = api_client.get("/api/v1/reports/summary/")
+    assert response.status_code == status.HTTP_200_OK
+    warehouse = response.data["data"]["warehouse"]
+    assert warehouse["products"] == 1
+    assert warehouse["low_stock"] == 1
+    assert warehouse["movements"] == 1

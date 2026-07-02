@@ -52,7 +52,7 @@ export default function LoginPage() {
       <div className="premium-card p-8">
         <div className="mb-8 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200">
-            Welcome back
+            Қайта қош келдіңіз
           </p>
           <h1 className="mt-3 text-3xl font-black gradient-text">Жүйеге кіру</h1>
           <p className="mt-2 text-sm text-gray-400">ERP басқару панеліне өтіңіз</p>
@@ -96,7 +96,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-xs text-gray-400">
-          Demo: <span className="text-gray-200">admin / admin123</span>, manager және employee аккаунттарын seed command арқылы қосуға болады.
+          Демо: <span className="text-gray-200">admin / admin123</span>, менеджер және қызметкер аккаунттарын seed командасы арқылы қосуға болады.
         </div>
 
         <p className="mt-6 text-center text-sm text-gray-500">

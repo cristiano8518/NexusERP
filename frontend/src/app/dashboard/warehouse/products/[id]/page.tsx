@@ -64,14 +64,14 @@ export default function ProductDetailPage() {
         <div className="glass-card p-4">
           <p className="text-sm text-gray-400">Қалдық</p>
           <p className="mt-1 text-2xl font-bold">{product.quantity}</p>
-          {product.is_low_stock && <Badge label="Low stock" variant="high" />}
+          {product.is_low_stock && <Badge label="Төмен қор" variant="high" />}
         </div>
         <div className="glass-card p-4">
           <p className="text-sm text-gray-400">Бірлік баға</p>
           <p className="mt-1 text-2xl font-bold">{Number(product.price).toLocaleString()} ₸</p>
         </div>
         <div className="glass-card p-4">
-          <p className="text-sm text-gray-400">Inventory value</p>
+          <p className="text-sm text-gray-400">Қойма құны</p>
           <p className="mt-1 text-2xl font-bold text-brand-400">
             {Number(product.inventory_value).toLocaleString()} ₸
           </p>
@@ -99,7 +99,7 @@ export default function ProductDetailPage() {
 
       <section className="glass-card overflow-hidden">
         <div className="border-b border-surface-border px-4 py-3">
-          <h3 className="font-semibold">Movement history</h3>
+          <h3 className="font-semibold">Қозғалыс тарихы</h3>
         </div>
         <div className="divide-y divide-surface-border">
           {movements.map((movement) => (
@@ -120,7 +120,7 @@ export default function ProductDetailPage() {
               <div className="text-right">
                 <p className="font-medium">{Number(movement.total_amount).toLocaleString()} ₸</p>
                 {movement.finance_entry_id && (
-                  <p className="text-xs text-emerald-400">Finance #{movement.finance_entry_id}</p>
+                  <p className="text-xs text-emerald-400">Қаржы #{movement.finance_entry_id}</p>
                 )}
                 <p className="text-xs text-gray-500">
                   {new Date(movement.created_at).toLocaleString("kk-KZ")}

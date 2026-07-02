@@ -144,7 +144,7 @@ export default function TaskDetailPage() {
       toast.success("Тапсырма жаңартылды", editForm.title);
       loadTask();
     } catch {
-      toast.error("Өзгеріс сақталмады", "Manager/Admin рұқсаттарын және деректерді тексеріңіз.");
+      toast.error("Өзгеріс сақталмады", "Менеджер/Әкімші рұқсаттарын және деректерді тексеріңіз.");
     }
   }
 
@@ -211,7 +211,7 @@ export default function TaskDetailPage() {
 
       <PageHeader
         title={task.title}
-        description="Тапсырма карточкасы, орындау тарихы және approval процесі"
+        description="Тапсырма карточкасы, орындау тарихы және бекіту процесі"
         action={
           isManager ? (
             <div className="flex flex-wrap gap-2">
@@ -242,7 +242,7 @@ export default function TaskDetailPage() {
           <div>
             <h3 className="font-semibold">Тапсырманы өзгерту</h3>
             <p className="text-sm text-gray-400">
-              Employee progress/status бөлек workflow арқылы өзгереді.
+              Қызметкер прогресі мен статусы бөлек процесс арқылы өзгереді.
             </p>
           </div>
           <input
@@ -303,7 +303,7 @@ export default function TaskDetailPage() {
             <div className="mb-4 flex flex-wrap gap-2">
               <Badge label={STATUS_LABELS[task.status] ?? task.status} variant={task.status} />
               <Badge label={PRIORITY_LABELS[task.priority] ?? task.priority} variant={task.priority} />
-              {task.is_overdue && <Badge label="Deadline өтті" variant="rejected" />}
+              {task.is_overdue && <Badge label="Мерзімі өтті" variant="rejected" />}
             </div>
 
             <p className="whitespace-pre-wrap text-gray-300">
@@ -316,7 +316,7 @@ export default function TaskDetailPage() {
                 <p className="font-medium">{task.assignee_name || "—"}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Deadline</p>
+                <p className="text-xs text-gray-500">Мерзім</p>
                 <p className={task.is_overdue ? "font-medium text-red-300" : "font-medium"}>
                   {formatDate(task.deadline)}
                 </p>
@@ -342,7 +342,7 @@ export default function TaskDetailPage() {
           </section>
 
           <section className="glass-card p-6">
-            <h3 className="mb-4 font-semibold">Workflow</h3>
+            <h3 className="mb-4 font-semibold">Жұмыс процесі</h3>
             <div className="grid gap-4 md:grid-cols-4">
               {["Тапсырылды", "Орындалуда", "Тексеруде", "Бекітілді"].map((label, index) => (
                 <WorkflowStep
@@ -395,7 +395,7 @@ export default function TaskDetailPage() {
 
             {(isManager || task.status === "done") && (
               <textarea
-                placeholder="Approval note / қайтару себебі..."
+                placeholder="Бекіту жазбасы / қайтару себебі..."
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 className="mt-4 w-full rounded-lg border border-surface-border bg-[#0f1117] px-3 py-2 text-sm outline-none focus:border-brand-500"
@@ -443,7 +443,7 @@ export default function TaskDetailPage() {
 
         <aside className="space-y-6">
           <section className="glass-card p-6">
-            <h3 className="mb-4 font-semibold">Employee progress</h3>
+            <h3 className="mb-4 font-semibold">Қызметкер прогресі</h3>
             <input
               type="range"
               min={0}

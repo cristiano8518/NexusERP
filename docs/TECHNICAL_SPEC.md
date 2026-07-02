@@ -61,7 +61,7 @@ Service-oriented boundaries inside the monolith:
 - JWT authentication.
 - Role-based access control: admin, manager, employee.
 - Security logs for login/register/token refresh events.
-- Webhook signature validation through `X-Nexus-Signature`.
+- Webhook HMAC validation through `X-Nexus-Timestamp` + `X-Nexus-Signature`.
 - Production settings support secure cookies and HTTPS mode.
 
 ## Evaluation Deliverables

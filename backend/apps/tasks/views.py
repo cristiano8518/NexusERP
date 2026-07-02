@@ -1,6 +1,9 @@
+import logging
+
 from django.utils import timezone
 from rest_framework import status as drf_status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from common.permissions import IsEmployeeOrAbove, IsManagerOrAdmin
@@ -9,6 +12,8 @@ from apps.notifications.services import create_notification
 
 from .models import Task, TaskActivity, TaskComment
 from .serializers import TaskCommentSerializer, TaskDetailSerializer, TaskSerializer
+
+logger = logging.getLogger("nexuserp")
 
 
 WORKFLOW_RULES = {
@@ -34,7 +39,10 @@ class TaskViewSet(viewsets.ModelViewSet):
         if user.role == "admin":
             return qs
         if user.role == "manager":
-            return qs
+            department_id = self._manager_department_id(user)
+            if not department_id:
+                return qs.none()
+            return qs.filter(assignee__department_id=department_id)
         if hasattr(user, "employee_profile"):
             return qs.filter(assignee__user=user)
         return qs.none()
@@ -52,6 +60,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def perform_create(self, serializer):
+        self._validate_manager_assignee(serializer.validated_data.get("assignee"))
         task = serializer.save(created_by=self.request.user, status=Task.Status.ASSIGNED)
         TaskActivity.objects.create(
             task=task,
@@ -70,7 +79,7 @@ class TaskViewSet(viewsets.ModelViewSet):
                 title=f"Жаңа тапсырма: {task.title}",
                 message=(
                     f"{self.request.user.username} сізге жаңа тапсырма берді. "
-                    f"Deadline: {task.deadline or 'көрсетілмеген'}"
+                    f"Мерзім: {task.deadline or 'көрсетілмеген'}"
                 ),
                 link=f"/dashboard/tasks/{task.id}",
                 metadata={"task_id": task.id},
@@ -85,12 +94,17 @@ class TaskViewSet(viewsets.ModelViewSet):
                         f"Сәлем, {assignee.user.first_name or assignee.user.username}!\n\n"
                         f"Сізге жаңа тапсырма тағайындалды: {task.title}\n"
                         f"Мерзім: {task.deadline or 'көрсетілмеген'}\n"
-                        f"Приоритет: {task.get_priority_display()}\n"
+                        f"Басымдық: {task.get_priority_display()}\n"
                     ),
                     recipient_list=[assignee.user.email],
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Task notification email enqueue failed (task_id=%s, assignee_id=%s): %s",
+                    task.id,
+                    assignee.id,
+                    exc,
+                )
 
     def partial_update(self, request, *args, **kwargs):
         task = self.get_object()
@@ -112,6 +126,11 @@ class TaskViewSet(viewsets.ModelViewSet):
             updated_task = serializer.save()
             self._record_update_activity(updated_task, old_status, old_progress, old_snapshot)
             return Response(serializer.data)
+        if request.user.role == "manager" and "assignee" in request.data:
+            serializer = self.get_serializer(task, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            assignee = serializer.validated_data.get("assignee")
+            self._validate_manager_assignee(assignee)
         response = super().partial_update(request, *args, **kwargs)
         task.refresh_from_db()
         self._record_update_activity(task, old_status, old_progress, old_snapshot)
@@ -120,7 +139,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         if request.user.role == "employee":
             return Response(
-                {"detail": "Қызметкер тек прогресті және workflow әрекеттерін өзгерте алады."},
+                {"detail": "Қызметкер тек прогресті және жұмыс процесі әрекеттерін өзгерте алады."},
                 status=drf_status.HTTP_403_FORBIDDEN,
             )
         if "status" in request.data:
@@ -128,6 +147,10 @@ class TaskViewSet(viewsets.ModelViewSet):
                 {"detail": "Статусты өзгерту үшін /transition/ endpoint қолданыңыз."},
                 status=drf_status.HTTP_400_BAD_REQUEST,
             )
+        if request.user.role == "manager":
+            serializer = self.get_serializer(self.get_object(), data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self._validate_manager_assignee(serializer.validated_data.get("assignee"))
         task = self.get_object()
         old_status = task.status
         old_progress = task.progress
@@ -251,6 +274,11 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def _can_change_status(self, user, task, target):
         if user.role in ("admin", "manager"):
+            if user.role == "manager" and task.assignee:
+                return (
+                    task.assignee.department_id == self._manager_department_id(user)
+                    and target in (Task.Status.APPROVED, Task.Status.REJECTED)
+                )
             return target in (Task.Status.APPROVED, Task.Status.REJECTED)
         if user.role == "employee":
             return (
@@ -259,6 +287,23 @@ class TaskViewSet(viewsets.ModelViewSet):
                 and target in (Task.Status.IN_PROGRESS, Task.Status.DONE)
             )
         return False
+
+    def _manager_department_id(self, user):
+        if hasattr(user, "employee_profile"):
+            return user.employee_profile.department_id
+        return None
+
+    def _validate_manager_assignee(self, assignee):
+        user = self.request.user
+        if user.role != "manager" or assignee is None:
+            return
+        department_id = self._manager_department_id(user)
+        if not department_id:
+            raise PermissionDenied("Менеджер профиліне бөлім байланыспаған.")
+        if assignee.department_id != department_id:
+            raise ValidationError(
+                {"assignee": "Менеджер тек өз бөліміндегі қызметкерге тапсырма бере алады."}
+            )
 
     def _task_snapshot(self, task):
         return {
@@ -326,7 +371,7 @@ class TaskViewSet(viewsets.ModelViewSet):
                 actor=actor,
                 notification_type=Notification.Type.TASK_APPROVED,
                 title=f"Тапсырма бекітілді: {task.title}",
-                message=note or "Жұмыс manager тарапынан бекітілді.",
+                message=note or "Жұмыс менеджер тарапынан бекітілді.",
                 link=link,
                 metadata=metadata,
             )

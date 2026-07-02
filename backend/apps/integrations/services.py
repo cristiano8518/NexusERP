@@ -32,10 +32,26 @@ def fetch_external_employees():
             if response.status >= 500:
                 raise ExternalAPIError(f"External API server error: {response.status}")
             payload = json.loads(response.read().decode("utf-8"))
-            return {"source": url, "employees": payload.get("employees", payload)}
+            if isinstance(payload, dict):
+                employees = payload.get("employees", payload)
+            elif isinstance(payload, list):
+                employees = payload
+            else:
+                raise ExternalAPIError("External API returned unsupported payload shape")
+            if not isinstance(employees, list):
+                raise ExternalAPIError("External API employees payload must be a list")
+            return {"source": url, "employees": employees}
+    except urllib.error.HTTPError as exc:
+        logger.warning("External employee API HTTP error: %s", exc)
+        if exc.code >= 500:
+            raise ExternalAPIError(f"External API server error: {exc.code}") from exc
+        raise ExternalAPIError(f"External API rejected request: {exc.code}") from exc
     except urllib.error.URLError as exc:
         logger.warning("External employee API failed: %s", exc)
         raise ExternalAPIError(f"External API unavailable: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        logger.warning("External employee API returned invalid JSON: %s", exc)
+        raise ExternalAPIError("External API returned invalid JSON") from exc
     except TimeoutError as exc:
         logger.warning("External employee API timeout: %s", exc)
         raise ExternalAPIError("External API timeout") from exc

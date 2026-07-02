@@ -20,7 +20,7 @@ const DEFAULT_FORM = {
   entry_date: new Date().toISOString().slice(0, 10),
 };
 
-const QUICK_CATEGORIES = ["Sales", "Warehouse", "Salary", "Office", "Transport", "Marketing", "Other"];
+const QUICK_CATEGORIES = ["Сату", "Қойма", "Жалақы", "Кеңсе", "Көлік", "Маркетинг", "Басқа"];
 
 function money(value: number) {
   return `${value.toLocaleString()} ₸`;
@@ -71,15 +71,21 @@ export default function FinancePage() {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense">("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [loadError, setLoadError] = useState("");
   const [form, setForm] = useState(DEFAULT_FORM);
 
   const canEdit = user?.role === "admin" || user?.role === "manager";
 
   function load() {
     setLoading(true);
+    setLoadError("");
     api
       .get<PaginatedResponse<FinanceEntry>>("/finance/entries/")
       .then((res) => setEntries(res.data.results))
+      .catch(() => {
+        setEntries([]);
+        setLoadError("Қаржы деректері жүктелмеді. Backend логтарын немесе авторизацияны тексеріңіз.");
+      })
       .finally(() => setLoading(false));
   }
 
@@ -221,11 +227,11 @@ export default function FinancePage() {
       />
 
       <section className="mb-6 grid gap-4 xl:grid-cols-4">
-        <FinanceMetric title="Жалпы табыс" value={income} hint="барлық income жазбалары" type="income" />
-        <FinanceMetric title="Жалпы шығын" value={expense} hint="барлық expense жазбалары" type="expense" />
+        <FinanceMetric title="Жалпы табыс" value={income} hint="барлық табыс жазбалары" type="income" />
+        <FinanceMetric title="Жалпы шығын" value={expense} hint="барлық шығын жазбалары" type="expense" />
         <FinanceMetric title="Баланс" value={balance} hint="табыс - шығын" type="balance" />
         <div className="premium-card p-5">
-          <p className="text-sm text-gray-400">Filtered cashflow</p>
+          <p className="text-sm text-gray-400">Фильтрленген ақша ағымы</p>
           <p className="mt-3 text-2xl font-black">{money(filteredIncome - filteredExpense)}</p>
           <p className="mt-1 text-xs text-gray-500">
             {filteredEntries.length} жазба, {money(filteredIncome)} / {money(filteredExpense)}
@@ -235,9 +241,9 @@ export default function FinancePage() {
 
       <section className="mb-6 grid gap-4 xl:grid-cols-[1fr_1fr]">
         <div className="premium-card p-5">
-          <h3 className="mb-4 text-lg font-bold">Category breakdown</h3>
+          <h3 className="mb-4 text-lg font-bold">Категория бойынша талдау</h3>
           {categorySummary.length === 0 ? (
-            <p className="text-sm text-gray-500">Category қосылғанда breakdown шығады.</p>
+            <p className="text-sm text-gray-500">Категория қосылғанда талдау шығады.</p>
           ) : (
             <div className="space-y-3">
               {categorySummary.map((item) => (
@@ -249,8 +255,8 @@ export default function FinancePage() {
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
-                    <span>Income: {money(item.totalIncome)}</span>
-                    <span>Expense: {money(item.totalExpense)}</span>
+                    <span>Табыс: {money(item.totalIncome)}</span>
+                    <span>Шығын: {money(item.totalExpense)}</span>
                   </div>
                 </div>
               ))}
@@ -259,7 +265,7 @@ export default function FinancePage() {
         </div>
 
         <div className="premium-card p-5">
-          <h3 className="mb-4 text-lg font-bold">Monthly cashflow</h3>
+          <h3 className="mb-4 text-lg font-bold">Айлық ақша ағымы</h3>
           {monthlySummary.length === 0 ? (
             <p className="text-sm text-gray-500">Айлық график үшін жазба қосыңыз.</p>
           ) : (
@@ -292,6 +298,12 @@ export default function FinancePage() {
           )}
         </div>
       </section>
+
+      {loadError && (
+        <p className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {loadError}
+        </p>
+      )}
 
       <div className="mb-4 flex flex-wrap gap-3">
         <div className="relative min-w-[260px] flex-1">
@@ -331,7 +343,7 @@ export default function FinancePage() {
           <div className="sm:col-span-2">
             <h3 className="font-semibold">{editingEntry ? "Қаржы жазбасын өзгерту" : "Жаңа қаржы жазбасы"}</h3>
             <p className="text-sm text-gray-400">
-              Category және description қоссаңыз, аналитика breakdown нақтырақ болады.
+              Категория және сипаттама қоссаңыз, аналитика нақтырақ болады.
             </p>
           </div>
           <select

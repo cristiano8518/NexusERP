@@ -1,7 +1,7 @@
 import csv
 from decimal import Decimal
 
-from django.db.models import Sum
+from django.db.models import F, Sum
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
@@ -30,18 +30,47 @@ def _csv_response(filename, headers, rows):
     return response
 
 
+def _department_scope(user):
+    if getattr(user, "role", None) == "manager" and hasattr(user, "employee_profile"):
+        return user.employee_profile.department_id
+    return None
+
+
 class ReportSummaryView(APIView):
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
     def get(self, request):
-        income = FinanceEntry.objects.filter(entry_type=FinanceEntry.EntryType.INCOME).aggregate(
+        department_id = _department_scope(request.user)
+        employees = Employee.objects.all()
+        tasks = Task.objects.all()
+        finance = FinanceEntry.objects.all()
+        movements = StockMovement.objects.all()
+        products = Product.objects.filter(is_active=True)
+        if department_id:
+            employees = employees.filter(department_id=department_id)
+            tasks = tasks.filter(assignee__department_id=department_id)
+            finance = finance.filter(created_by__employee_profile__department_id=department_id)
+            movements = movements.filter(created_by__employee_profile__department_id=department_id)
+            products = products.filter(
+                movements__created_by__employee_profile__department_id=department_id
+            ).distinct()
+
+        income = finance.filter(entry_type=FinanceEntry.EntryType.INCOME).aggregate(
             total=Sum("amount")
         )["total"]
-        expense = FinanceEntry.objects.filter(entry_type=FinanceEntry.EntryType.EXPENSE).aggregate(
+        expense = finance.filter(entry_type=FinanceEntry.EntryType.EXPENSE).aggregate(
             total=Sum("amount")
         )["total"]
-        task_total = Task.objects.count()
-        task_done = Task.objects.filter(status__in=[Task.Status.DONE, Task.Status.APPROVED]).count()
+        now = timezone.now()
+        task_total = tasks.count()
+        task_done = tasks.filter(status__in=[Task.Status.DONE, Task.Status.APPROVED]).count()
+        task_overdue = tasks.filter(
+            deadline__lt=now,
+        ).exclude(status__in=[Task.Status.DONE, Task.Status.APPROVED]).count()
+        low_stock = products.filter(
+            is_active=True,
+            quantity__lte=F("min_stock_level"),
+        ).count()
 
         return Response(
             {
@@ -49,14 +78,14 @@ class ReportSummaryView(APIView):
                 "generated_at": timezone.now(),
                 "data": {
                     "employees": {
-                        "active": Employee.objects.filter(is_active=True).count(),
-                        "total": Employee.objects.count(),
+                        "active": employees.filter(is_active=True).count(),
+                        "total": employees.count(),
                     },
                     "tasks": {
                         "total": task_total,
                         "done": task_done,
-                        "approved": Task.objects.filter(status=Task.Status.APPROVED).count(),
-                        "overdue": sum(1 for task in Task.objects.all() if task.is_overdue),
+                        "approved": tasks.filter(status=Task.Status.APPROVED).count(),
+                        "overdue": task_overdue,
                         "completion_rate": round(task_done * 100 / task_total, 1) if task_total else 0,
                     },
                     "finance": {
@@ -65,9 +94,9 @@ class ReportSummaryView(APIView):
                         "balance": _money(income) - _money(expense),
                     },
                     "warehouse": {
-                        "products": Product.objects.filter(is_active=True).count(),
-                        "low_stock": sum(1 for product in Product.objects.filter(is_active=True) if product.is_low_stock),
-                        "movements": StockMovement.objects.count(),
+                        "products": products.count(),
+                        "low_stock": low_stock,
+                        "movements": movements.count(),
                     },
                 },
             }
@@ -83,7 +112,7 @@ class AsyncReportView(APIView):
             return Response(
                 {
                     "success": False,
-                    "detail": "report_type must be one of: tasks, finance, warehouse, employees",
+                    "detail": "report_type мәні tasks, finance, warehouse немесе employees болуы керек",
                 },
                 status=400,
             )
@@ -92,7 +121,7 @@ class AsyncReportView(APIView):
             {
                 "success": True,
                 "task_id": async_result.id,
-                "message": "Report generation started in background.",
+                "message": "Есеп фондық режимде жасала бастады.",
             },
             status=202,
         )
@@ -103,7 +132,11 @@ class TaskReportCsvView(APIView):
 
     def get(self, request):
         rows = []
-        for task in Task.objects.select_related("created_by", "assignee", "assignee__user"):
+        tasks = Task.objects.select_related("created_by", "assignee", "assignee__user")
+        department_id = _department_scope(request.user)
+        if department_id:
+            tasks = tasks.filter(assignee__department_id=department_id)
+        for task in tasks:
             rows.append(
                 [
                     task.id,
@@ -114,7 +147,7 @@ class TaskReportCsvView(APIView):
                     task.assignee.user.username if task.assignee else "",
                     task.progress,
                     task.deadline or "",
-                    "yes" if task.is_overdue else "no",
+                    "иә" if task.is_overdue else "жоқ",
                     task.created_at,
                 ]
             )
@@ -122,15 +155,15 @@ class TaskReportCsvView(APIView):
             "nexuserp_tasks_report.csv",
             [
                 "ID",
-                "Title",
-                "Status",
-                "Priority",
-                "Created by",
-                "Assignee",
-                "Progress",
-                "Deadline",
-                "Overdue",
-                "Created at",
+                "Атауы",
+                "Статус",
+                "Басымдық",
+                "Құрған",
+                "Орындаушы",
+                "Прогресс",
+                "Мерзім",
+                "Мерзімі өтті",
+                "Құрылған уақыты",
             ],
             rows,
         )
@@ -141,7 +174,11 @@ class FinanceReportCsvView(APIView):
 
     def get(self, request):
         rows = []
-        for entry in FinanceEntry.objects.select_related("created_by"):
+        entries = FinanceEntry.objects.select_related("created_by")
+        department_id = _department_scope(request.user)
+        if department_id:
+            entries = entries.filter(created_by__employee_profile__department_id=department_id)
+        for entry in entries:
             rows.append(
                 [
                     entry.id,
@@ -156,7 +193,7 @@ class FinanceReportCsvView(APIView):
             )
         return _csv_response(
             "nexuserp_finance_report.csv",
-            ["ID", "Type", "Title", "Category", "Amount", "Date", "Created by", "Description"],
+            ["ID", "Түрі", "Атауы", "Категория", "Сома", "Күні", "Құрған", "Сипаттама"],
             rows,
         )
 
@@ -166,7 +203,8 @@ class WarehouseReportCsvView(APIView):
 
     def get(self, request):
         rows = []
-        for product in Product.objects.select_related("category"):
+        products = Product.objects.select_related("category")
+        for product in products:
             rows.append(
                 [
                     product.id,
@@ -177,7 +215,7 @@ class WarehouseReportCsvView(APIView):
                     product.min_stock_level,
                     product.price,
                     product.quantity * product.price,
-                    "yes" if product.is_low_stock else "no",
+                    "иә" if product.is_low_stock else "жоқ",
                 ]
             )
         return _csv_response(
@@ -185,13 +223,13 @@ class WarehouseReportCsvView(APIView):
             [
                 "ID",
                 "SKU",
-                "Name",
-                "Category",
-                "Quantity",
-                "Min stock",
-                "Price",
-                "Inventory value",
-                "Low stock",
+                "Атауы",
+                "Категория",
+                "Саны",
+                "Минимум қор",
+                "Бағасы",
+                "Қойма құны",
+                "Төмен қор",
             ],
             rows,
         )
@@ -202,7 +240,11 @@ class EmployeeReportCsvView(APIView):
 
     def get(self, request):
         rows = []
-        for employee in Employee.objects.select_related("user", "department", "position", "manager"):
+        employees = Employee.objects.select_related("user", "department", "position", "manager")
+        department_id = _department_scope(request.user)
+        if department_id:
+            employees = employees.filter(department_id=department_id)
+        for employee in employees:
             rows.append(
                 [
                     employee.employee_id,
@@ -211,13 +253,13 @@ class EmployeeReportCsvView(APIView):
                     employee.user.role,
                     employee.department.name,
                     employee.position.title,
-                    employee.salary if request.user.role == "admin" else "hidden",
+                    employee.salary if request.user.role == "admin" else "жасырын",
                     employee.hire_date,
-                    "active" if employee.is_active else "inactive",
+                    "белсенді" if employee.is_active else "белсенді емес",
                 ]
             )
         return _csv_response(
             "nexuserp_employees_report.csv",
-            ["Employee ID", "Username", "Email", "Role", "Department", "Position", "Salary", "Hire date", "Status"],
+            ["Қызметкер ID", "Логин", "Email", "Рөл", "Бөлім", "Лауазым", "Жалақы", "Қабылданған күн", "Статус"],
             rows,
         )

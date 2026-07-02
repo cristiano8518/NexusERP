@@ -8,7 +8,7 @@ X_FRAME_OPTIONS = "DENY"
 
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])  # noqa: F405
 
-USE_HTTPS = env.bool("USE_HTTPS", default=False)  # noqa: F405
+USE_HTTPS = env.bool("USE_HTTPS", default=True)  # noqa: F405
 SESSION_COOKIE_SECURE = USE_HTTPS
 CSRF_COOKIE_SECURE = USE_HTTPS
 

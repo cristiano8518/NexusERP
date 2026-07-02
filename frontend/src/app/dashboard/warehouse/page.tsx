@@ -98,12 +98,15 @@ export default function WarehousePage() {
         note: "",
         auto_create_finance: true,
       });
-      toast.success("Қойма операциясы сақталды", "Finance integration қолданылды.");
+      toast.success("Қойма операциясы сақталды", "Қаржы интеграциясы қолданылды.");
       load();
     } catch (err: unknown) {
+      const data = (err as { response?: { data?: { errors?: Record<string, string[]>; quantity?: string[]; detail?: string } } })?.response?.data;
       const msg =
-        (err as { response?: { data?: { errors?: Record<string, string[]> } } })?.response?.data
-          ?.errors?.quantity?.[0] || "Операцияны сақтау мүмкін болмады.";
+        data?.errors?.quantity?.[0] ||
+        data?.quantity?.[0] ||
+        data?.detail ||
+        "Операцияны сақтау мүмкін болмады.";
       setError(msg);
       toast.error("Операция сақталмады", msg);
     }
@@ -274,7 +277,7 @@ export default function WarehousePage() {
                 setMoveForm({ ...moveForm, auto_create_finance: e.target.checked })
               }
             />
-            Finance жазбасын автоматты жасау
+            Қаржы жазбасын автоматты жасау
           </label>
           <div className="rounded-lg border border-surface-border bg-[#0f1117] px-3 py-2 text-sm">
             Жалпы сома:{" "}
@@ -311,7 +314,7 @@ export default function WarehousePage() {
                 <span className="text-brand-400">{Number(p.price).toLocaleString()} ₸</span>
               </div>
               <div className="mt-2 flex justify-between text-xs text-gray-500">
-                <span>Inventory value</span>
+                <span>Қойма құны</span>
                 <span>{Number(p.inventory_value).toLocaleString()} ₸</span>
               </div>
             </Link>
@@ -352,7 +355,7 @@ export default function WarehousePage() {
                 </p>
                 {m.finance_entry_id && (
                   <p className="text-[11px] text-emerald-400">
-                    Finance #{m.finance_entry_id}
+                    Қаржы #{m.finance_entry_id}
                   </p>
                 )}
                 <p className="text-xs text-gray-500">

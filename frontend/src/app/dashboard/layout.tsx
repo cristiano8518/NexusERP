@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Bot,
   Boxes,
   CheckSquare,
   LayoutDashboard,
@@ -29,9 +30,10 @@ type NavItem = {
 };
 
 const nav: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "manager", "employee"] },
+  { href: "/dashboard", label: "Басты бет", icon: LayoutDashboard, roles: ["admin", "manager", "employee"] },
   { href: "/dashboard/profile", label: "Профиль", icon: UserCircle, roles: ["admin", "manager", "employee"] },
   { href: "/dashboard/tasks", label: "Тапсырмалар", icon: CheckSquare, roles: ["admin", "manager", "employee"] },
+  { href: "/dashboard/ai", label: "AI көмекші", icon: Bot, roles: ["admin", "manager", "employee"] },
   { href: "/dashboard/employees", label: "Қызметкерлер", icon: Users, roles: ["admin", "manager"] },
   { href: "/dashboard/warehouse", label: "Қойма", icon: Boxes, roles: ["admin", "manager"] },
   { href: "/dashboard/finance", label: "Қаржы", icon: Wallet, roles: ["admin", "manager"] },
@@ -55,7 +57,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div>
               <span className="font-semibold text-white">NexusERP</span>
-              <p className="text-xs text-gray-500">Business OS</p>
+              <p className="text-xs text-gray-500">Бизнес жүйесі</p>
             </div>
           </div>
           <nav className="flex flex-1 flex-col gap-1">

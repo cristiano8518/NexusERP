@@ -29,7 +29,7 @@ export default function SecurityPage() {
     <div>
       <PageHeader
         title="Қауіпсіздік логтары"
-        description="Кіру, тіркелу және auth оқиғалары (тек Admin)"
+        description="Кіру, тіркелу және авторизация оқиғалары (тек Әкімші)"
       />
 
       {loading ? (

@@ -92,7 +92,9 @@ Implemented:
   - Endpoint: `GET /api/v1/integrations/external-employees/`
 - Secure webhook endpoint:
   - `POST /api/v1/integrations/webhooks/external/`
-  - Header: `X-Nexus-Signature: <EXTERNAL_WEBHOOK_SECRET>`
+  - Headers:
+    - `X-Nexus-Timestamp: <unix_timestamp>`
+    - `X-Nexus-Signature: sha256=<hmac_sha256(timestamp + "." + raw_body, secret)>`
 
 Verification:
 
@@ -110,3 +112,73 @@ ODOO_EMPLOYEES_URL=
 EXTERNAL_API_TIMEOUT_SECONDS=5
 EXTERNAL_WEBHOOK_SECRET=dev-webhook-secret
 ```
+
+## Week 5: Automated Testing and CI/CD (completed)
+
+Implemented:
+
+- API integration tests were added for critical backend modules:
+  - `backend/apps/tasks/tests/test_tasks_api.py`
+  - `backend/apps/finance/tests/test_finance_api.py`
+  - `backend/apps/warehouse/tests/test_warehouse_api.py`
+  - `backend/apps/integrations/tests/test_integrations_api.py`
+- Shared test fixtures were added:
+  - `backend/conftest.py`
+- CI pipeline now enforces code coverage:
+  - `.github/workflows/ci.yml`
+  - Uses `pytest-cov` with `--cov-fail-under=40`.
+  - Uploads `coverage.xml` as CI artifact.
+
+Verification:
+
+```powershell
+cd C:\Users\user\NexusERP\backend
+pytest --cov=apps/tasks --cov=apps/finance --cov=apps/warehouse --cov=apps/integrations --cov-report=term-missing --cov-report=xml --cov-fail-under=40
+```
+
+## Week 6: Production Readiness and Deployment (completed)
+
+Implemented:
+
+- Production-like Docker stack is complete:
+  - `docker-compose.prod.yml`
+  - `nginx/nginx.conf`
+  - `scripts/prod-deploy.ps1`
+- CD workflow added for remote server deployment:
+  - `.github/workflows/cd.yml`
+  - Deploy trigger: `push` to `main` and manual `workflow_dispatch`.
+- Security hardening improved with API rate limiting:
+  - Global throttling in `backend/config/settings/base.py`
+  - Auth endpoint throttles via `backend/common/throttling.py`
+  - Applied in `backend/apps/accounts/views.py`
+
+Verification:
+
+```powershell
+copy .env.production.example .env.production
+.\scripts\prod-deploy.ps1
+```
+
+CD secrets required in GitHub:
+
+- `DEPLOY_HOST`
+- `DEPLOY_USER`
+- `DEPLOY_SSH_KEY`
+- `DEPLOY_PATH`
+
+## Week 7: Final Presentation and Defense Materials (completed)
+
+Prepared deliverables:
+
+- Presentation storyline and talking points:
+  - `docs/WEEK7_PRESENTATION.md`
+- Live demo scenario with timeboxes:
+  - `docs/WEEK7_DEMO_SCRIPT.md`
+- Defense Q&A and risk answers:
+  - `docs/WEEK7_DEFENSE_QA.md`
+
+Expected final defense format:
+
+- 8-12 minute architecture and technical walkthrough.
+- 5-7 minute live demo.
+- Structured Q&A on design decisions, scalability and security.

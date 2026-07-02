@@ -16,11 +16,11 @@ type DashboardData = {
 };
 
 const TASK_COLUMNS = [
-  { status: "assigned", title: "Assigned", color: "border-amber-500/40" },
-  { status: "in_progress", title: "In Progress", color: "border-blue-500/40" },
-  { status: "done", title: "Review", color: "border-purple-500/40" },
-  { status: "approved", title: "Approved", color: "border-emerald-500/40" },
-  { status: "rejected", title: "Rejected", color: "border-red-500/40" },
+  { status: "assigned", title: "Тапсырылды", color: "border-amber-500/40" },
+  { status: "in_progress", title: "Орындалуда", color: "border-blue-500/40" },
+  { status: "done", title: "Тексеруде", color: "border-purple-500/40" },
+  { status: "approved", title: "Бекітілді", color: "border-emerald-500/40" },
+  { status: "rejected", title: "Қайтарылды", color: "border-red-500/40" },
 ];
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -64,7 +64,7 @@ function DashboardTaskBoard({ tasks }: { tasks: Task[] }) {
     <section className="mt-8">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold">Task Workflow Board</h2>
+          <h2 className="text-xl font-semibold">Тапсырмалар тақтасы</h2>
           <p className="mt-1 text-sm text-gray-400">
             Компаниядағы тапсырмалар статусы бойынша live көрініс
           </p>
@@ -168,7 +168,7 @@ export default function DashboardPage() {
     <div>
       <div className="mb-8 overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-r from-white/[0.12] via-white/[0.07] to-transparent p-6 shadow-2xl shadow-black/20 backdrop-blur-2xl">
       <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200">
-        Today overview
+        Бүгінгі шолу
       </p>
       <h1 className="text-3xl font-black tracking-tight md:text-4xl">
         Сәлем, {user?.first_name || user?.username}!

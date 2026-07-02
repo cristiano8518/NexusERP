@@ -44,7 +44,7 @@ export default function HomePage() {
             </p>
             <div className="mt-10 flex flex-wrap gap-4">
               <Link href="/dashboard" className="premium-button">
-                Dashboard
+              Басқару панелі
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <a
@@ -63,19 +63,19 @@ export default function HomePage() {
             <div className="premium-card relative overflow-hidden p-6">
               <div className="mb-6 flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-400">Live business overview</p>
-                  <h2 className="mt-1 text-2xl font-bold">Nexus Control Center</h2>
+                  <p className="text-sm text-gray-400">Бизнес көрсеткіштерінің live шолуы</p>
+                  <h2 className="mt-1 text-2xl font-bold">Nexus басқару орталығы</h2>
                 </div>
                 <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-300">
-                  Online
+                  Желіде
                 </span>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
                   ["HR", "128", "employees"],
-                  ["Tasks", "86%", "completed"],
+                  ["Тапсырмалар", "86%", "аяқталды"],
                   ["Stock", "2.4K", "items"],
-                  ["Finance", "+18%", "growth"],
+                  ["Қаржы", "+18%", "өсім"],
                 ].map(([label, value, desc]) => (
                   <div key={label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
                     <p className="text-xs uppercase tracking-widest text-gray-500">{label}</p>

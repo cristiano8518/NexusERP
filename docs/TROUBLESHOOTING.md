@@ -10,9 +10,11 @@ Next.js inside Docker was listening only on `127.0.0.1` inside the container, no
 Rebuild frontend:
 ```powershell
 cd C:\Users\user\NexusERP
-docker compose down
-docker compose up --build frontend
+docker compose build --no-cache frontend
+docker compose up -d frontend
 ```
+
+> Ескерту: бұл қадамдар development үшін. Production ортада толық `docker compose down` қолданбаңыз.
 
 ### Fast checks (in order)
 

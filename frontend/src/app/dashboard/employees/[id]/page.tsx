@@ -57,7 +57,7 @@ export default function EmployeeDetailPage() {
               <div className="mt-2 flex gap-2">
                 <Badge label={employee.user.role} variant={employee.user.role} />
                 <Badge
-                  label={employee.is_active ? "Active" : "Inactive"}
+                  label={employee.is_active ? "Белсенді" : "Белсенді емес"}
                   variant={employee.is_active ? "approved" : "rejected"}
                 />
               </div>
@@ -77,21 +77,21 @@ export default function EmployeeDetailPage() {
             </div>
             <div className="grid grid-cols-2 gap-3 pt-4">
               <div className="rounded-xl bg-white/5 p-3">
-                <p className="text-xs text-gray-500">Hire date</p>
+                <p className="text-xs text-gray-500">Қабылданған күн</p>
                 <p className="font-medium">{employee.hire_date}</p>
               </div>
               <div className="rounded-xl bg-white/5 p-3">
-                <p className="text-xs text-gray-500">Manager</p>
+                <p className="text-xs text-gray-500">Жетекші</p>
                 <p className="font-medium">{employee.manager_name || "—"}</p>
               </div>
               <div className="rounded-xl bg-white/5 p-3">
-                <p className="text-xs text-gray-500">Salary</p>
+                <p className="text-xs text-gray-500">Жалақы</p>
                 <p className="font-medium">
                   {employee.salary ? `${Number(employee.salary).toLocaleString()} ₸` : "Жасырын"}
                 </p>
               </div>
               <div className="rounded-xl bg-white/5 p-3">
-                <p className="text-xs text-gray-500">Username</p>
+                <p className="text-xs text-gray-500">Логин</p>
                 <p className="font-medium">@{employee.user.username}</p>
               </div>
             </div>
@@ -101,23 +101,23 @@ export default function EmployeeDetailPage() {
         <section className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-4">
             <div className="glass-card p-4">
-              <p className="text-sm text-gray-400">Tasks</p>
+              <p className="text-sm text-gray-400">Тапсырмалар</p>
               <p className="mt-1 text-2xl font-bold">{employee.task_summary.total}</p>
             </div>
             <div className="glass-card p-4">
-              <p className="text-sm text-gray-400">In progress</p>
+              <p className="text-sm text-gray-400">Орындалуда</p>
               <p className="mt-1 text-2xl font-bold text-blue-300">
                 {employee.task_summary.in_progress}
               </p>
             </div>
             <div className="glass-card p-4">
-              <p className="text-sm text-gray-400">Done</p>
+              <p className="text-sm text-gray-400">Аяқталған</p>
               <p className="mt-1 text-2xl font-bold text-emerald-300">
                 {employee.task_summary.done}
               </p>
             </div>
             <div className="glass-card p-4">
-              <p className="text-sm text-gray-400">Rate</p>
+              <p className="text-sm text-gray-400">Көрсеткіш</p>
               <p className="mt-1 text-2xl font-bold text-brand-400">
                 {employee.task_summary.completion_rate}%
               </p>
@@ -126,7 +126,7 @@ export default function EmployeeDetailPage() {
 
           <div className="glass-card overflow-hidden">
             <div className="border-b border-surface-border px-4 py-3">
-              <h3 className="font-semibold">Recent tasks</h3>
+              <h3 className="font-semibold">Соңғы тапсырмалар</h3>
             </div>
             <div className="divide-y divide-surface-border">
               {employee.recent_tasks.map((task) => (
@@ -139,7 +139,7 @@ export default function EmployeeDetailPage() {
                     <div>
                       <p className="font-medium">{task.title}</p>
                       <p className="mt-1 text-xs text-gray-500">
-                        Deadline:{" "}
+                        Мерзім:{" "}
                         {task.deadline
                           ? new Date(task.deadline).toLocaleString("kk-KZ")
                           : "—"}
@@ -163,7 +163,7 @@ export default function EmployeeDetailPage() {
               ))}
               {employee.recent_tasks.length === 0 && (
                 <p className="p-6 text-center text-sm text-gray-500">
-                  Бұл қызметкерге task берілмеген.
+                  Бұл қызметкерге тапсырма берілмеген.
                 </p>
               )}
             </div>

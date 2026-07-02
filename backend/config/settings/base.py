@@ -60,6 +60,7 @@ LOCAL_APPS = [
     "apps.notifications",
     "apps.reports",
     "apps.integrations",
+    "apps.ai",
 ]
 
 INSTALLED_APPS = JAZZMIN_APPS + DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -172,6 +173,16 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": env("THROTTLE_ANON_RATE", default="60/min"),
+        "user": env("THROTTLE_USER_RATE", default="300/min"),
+        "auth_login": env("THROTTLE_AUTH_LOGIN_RATE", default="10/min"),
+        "auth_register": env("THROTTLE_AUTH_REGISTER_RATE", default="5/min"),
+    },
     "EXCEPTION_HANDLER": "common.exceptions.custom_exception_handler",
 }
 
@@ -240,6 +251,13 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@nexuserp.local")
 ODOO_EMPLOYEES_URL = env("ODOO_EMPLOYEES_URL", default="")
 EXTERNAL_API_TIMEOUT_SECONDS = env.int("EXTERNAL_API_TIMEOUT_SECONDS", default=5)
 EXTERNAL_WEBHOOK_SECRET = env("EXTERNAL_WEBHOOK_SECRET", default="")
+
+# ---------------------------------------------------------------------------
+# Local AI assistant (Ollama)
+# ---------------------------------------------------------------------------
+OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", default="http://host.docker.internal:11434")
+OLLAMA_MODEL = env("OLLAMA_MODEL", default="llama3.1:8b")
+OLLAMA_TIMEOUT_SECONDS = env.int("OLLAMA_TIMEOUT_SECONDS", default=60)
 
 # ---------------------------------------------------------------------------
 # Logging

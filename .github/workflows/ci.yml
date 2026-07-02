@@ -44,7 +44,7 @@ jobs:
         working-directory: backend
         run: ruff check .
 
-      - name: Migrate & test
+      - name: Migrate & test with coverage
         working-directory: backend
         env:
           DATABASE_URL: postgres://nexuserp:nexuserp_secret@localhost:5432/nexuserp
@@ -55,7 +55,20 @@ jobs:
           DEBUG: "1"
         run: |
           python manage.py migrate --noinput
-          pytest
+          pytest \
+            --cov=apps/tasks \
+            --cov=apps/finance \
+            --cov=apps/warehouse \
+            --cov=apps/integrations \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=40
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-xml
+          path: backend/coverage.xml
 
   frontend:
     runs-on: ubuntu-latest
@@ -69,7 +82,7 @@ jobs:
       - name: Install & build
         working-directory: frontend
         run: |
-          npm install
+          npm ci
           npm run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1

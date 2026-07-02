@@ -89,7 +89,7 @@ export default function EmployeesPage() {
               className="inline-flex items-center gap-2 rounded-lg border border-surface-border px-4 py-2 text-sm text-gray-300 hover:border-brand-500"
             >
               <Building2 className="h-4 w-4" />
-              HR Structure
+              HR құрылымы
             </Link>
             {isAdmin && (
               <button
@@ -123,7 +123,7 @@ export default function EmployeesPage() {
             required
           />
           <input
-            placeholder="Email"
+            placeholder="Электрондық пошта"
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -151,7 +151,7 @@ export default function EmployeesPage() {
             className="rounded-lg border border-surface-border bg-[#0f1117] px-3 py-2"
           />
           <input
-            placeholder="Employee ID (мыс. EMP-002)"
+            placeholder="Қызметкер ID (мыс. EMP-002)"
             value={form.employee_id}
             onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
             className="rounded-lg border border-surface-border bg-[#0f1117] px-3 py-2"

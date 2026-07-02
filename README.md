@@ -39,6 +39,9 @@ copy .env.example .env
 
 `.env` ішінде `SECRET_KEY` өзгертіңіз.
 
+> Барлық `docker compose ...` командаларын міндетті түрде `C:\Users\user\NexusERP`
+> папкасынан орындаңыз. Әйтпесе Docker `no configuration file provided` қатесін береді.
+
 ### 2. Docker (ұсынылады)
 
 ```bash
@@ -64,6 +67,39 @@ docker compose up --build
 docker compose exec backend python manage.py createsuperuser
 ```
 
+### 4. Масштабты demo data
+
+Dashboard, Tasks, Finance, Warehouse, Analytics & Reports бөлімдері бос көрінбеуі үшін
+realistic үлкен dataset құюға болады:
+
+```powershell
+.\scripts\seed-scale-demo.ps1
+```
+
+Немесе қолмен:
+
+```powershell
+docker compose exec backend python manage.py seed_scale_demo --reset-scale --employees 48 --tasks 240 --finance 220 --movements 160
+```
+
+Бұл команда мыналарды қосады:
+
+- 6 бөлім және бірнеше лауазым;
+- 48 қызметкер және бірнеше manager;
+- 240 workflow тапсырма;
+- 220 қаржы жазбасы;
+- 12 өнім және 160 қойма қозғалысы;
+- task activity, comments және notifications.
+
+Demo login:
+
+```text
+admin / admin123
+manager / manager123
+scale_manager_01 / manager123
+scale_employee_001 / employee123
+```
+
 ## Модульдер (фундамент)
 
 - **accounts** — Auth, JWT, рөлдер, қауіпсіздік логтары
@@ -81,7 +117,18 @@ docker compose exec backend python manage.py createsuperuser
 Курстық/апталық критерийлер mapping:
 
 - `docs/TECHNICAL_SPEC.md` — техникалық тапсырма және архитектура.
-- `docs/EVALUATION_CRITERIA.md` — 1–4 апта критерийлерінің орындалуын дәлелдеу.
+- `docs/EVALUATION_CRITERIA.md` — 1–7 апта критерийлерінің орындалуын дәлелдеу.
+- `docs/IMPROVEMENT_PLAN.md` — жетіспейтін жерлер, түзетілген қателер және next roadmap.
+- `docs/WEEK7_PRESENTATION.md` — финал презентация құрылымы.
+- `docs/WEEK7_DEMO_SCRIPT.md` — live demo жүргізу сценариі.
+- `docs/WEEK7_DEFENSE_QA.md` — қорғауға дайын Q&A.
+
+### Week 5–7 жаңартуы
+
+- **Week 5 (Automated Testing):** `tasks`, `finance`, `warehouse`, `integrations` модульдеріне API тесттері қосылды.
+- **Coverage gate:** CI ішінде `pytest-cov` арқылы coverage есептеледі, `--cov-fail-under=40` енгізілді.
+- **Week 6 (Security/CD):** DRF rate limiting (`THROTTLE_ANON_RATE`, `THROTTLE_USER_RATE`) қосылды.
+- **CD pipeline:** `.github/workflows/cd.yml` арқылы `main` branch push және manual dispatch кезінде deploy сценарийі іске қосылады (SSH secrets қажет).
 
 Негізгі verification endpoint-тер:
 
@@ -89,10 +136,33 @@ docker compose exec backend python manage.py createsuperuser
 GET  /api/v1/analytics/cache-benchmark/
 POST /api/v1/reports/async/
 POST /api/v1/notifications/bulk-email/
+POST /api/v1/ai/chat/
 GET  /api/v1/integrations/external-employees/
 POST /api/v1/integrations/external-employees/
 POST /api/v1/integrations/webhooks/external/
 ```
+
+## Ollama AI көмекші
+
+NexusERP ішінде локалды AI көмекші бар: `Басты бет → AI көмекші`.
+Frontend тікелей Ollama-ға қосылмайды; сұрақ алдымен Django endpoint-ке барады, backend рөлге сай ERP context жинап, Ollama-ға жібереді.
+
+Компьютерде Ollama іске қосыңыз:
+
+```powershell
+ollama serve
+ollama pull llama3.1:8b
+```
+
+`.env` ішінде:
+
+```env
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_MODEL=llama3.1:8b
+OLLAMA_TIMEOUT_SECONDS=60
+```
+
+Егер backend Docker ішінде емес, тікелей Windows-та іске қосылса, `OLLAMA_BASE_URL=http://localhost:11434` деп ауыстыруға болады.
 
 ## Рөлдер
 
@@ -101,6 +171,12 @@ POST /api/v1/integrations/webhooks/external/
 | Админ | `admin` |
 | Менеджер | `manager` |
 | Қызметкер | `employee` |
+
+Логика:
+
+- **Админ** барлық бөлімдерді, қызметкерлерді, тапсырмаларды, қаржы жазбаларын және есептерді көреді.
+- **Менеджер** тек өзінің HR профиліндегі бөлімге байланысты деректерді қадағалайды: сол бөлімнің қызметкерлері, тапсырмалары, бөлім бойынша analytics/report көрсеткіштері.
+- **Қызметкер** тек өзіне берілген тапсырмаларды көреді және прогресті жаңарта алады.
 
 ## Production-like Deploy
 

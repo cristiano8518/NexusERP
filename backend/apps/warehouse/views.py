@@ -29,6 +29,15 @@ class StockMovementViewSet(viewsets.ModelViewSet):
     serializer_class = StockMovementSerializer
     permission_classes = [IsManagerOrAdmin]
 
+    def get_queryset(self):
+        user = self.request.user
+        qs = StockMovement.objects.select_related("product", "created_by")
+        if getattr(user, "role", None) == "admin":
+            return qs
+        if getattr(user, "role", None) == "manager" and hasattr(user, "employee_profile"):
+            return qs.filter(created_by__employee_profile__department_id=user.employee_profile.department_id)
+        return qs.none()
+
     def perform_create(self, serializer):
         with transaction.atomic():
             movement = serializer.save(created_by=self.request.user)
@@ -52,8 +61,8 @@ class StockMovementViewSet(viewsets.ModelViewSet):
                     entry_type=entry_type,
                     title=f"{title_prefix}: {product.name}",
                     amount=movement.total_amount,
-                    category="Warehouse",
-                    description=movement.note or f"Stock movement #{movement.id}",
+                    category="Қойма",
+                    description=movement.note or f"Қойма қозғалысы #{movement.id}",
                     entry_date=movement.created_at.date(),
                     created_by=self.request.user,
                 )
@@ -66,7 +75,7 @@ class StockMovementViewSet(viewsets.ModelViewSet):
                 actor=self.request.user,
                 notification_type=Notification.Type.LOW_STOCK,
                 priority=Notification.Priority.HIGH,
-                title=f"Low stock: {product.name}",
+                title=f"Қор төмен: {product.name}",
                 message=f"Қалдық: {product.quantity} {product.unit}. Минимум: {product.min_stock_level}",
                 link="/dashboard/warehouse",
                 metadata={"product_id": product.id},

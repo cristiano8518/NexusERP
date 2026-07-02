@@ -155,7 +155,7 @@ export default function HrStructurePage() {
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="glass-card overflow-hidden">
           <div className="border-b border-surface-border px-4 py-3">
-            <h3 className="font-semibold">Departments</h3>
+            <h3 className="font-semibold">Бөлімдер</h3>
           </div>
           <div className="divide-y divide-surface-border">
             {departments.map((department) => (
@@ -166,13 +166,13 @@ export default function HrStructurePage() {
                     <p className="mt-1 text-sm text-gray-400">{department.description || "—"}</p>
                   </div>
                   <Badge
-                    label={department.is_active ? "Active" : "Inactive"}
+                    label={department.is_active ? "Белсенді" : "Белсенді емес"}
                     variant={department.is_active ? "approved" : "rejected"}
                   />
                 </div>
                 <div className="mt-3 flex gap-3 text-xs text-gray-500">
-                  <span>{department.employees_count} employees</span>
-                  <span>{department.positions_count} positions</span>
+                  <span>{department.employees_count} қызметкер</span>
+                  <span>{department.positions_count} лауазым</span>
                 </div>
               </div>
             ))}
@@ -181,7 +181,7 @@ export default function HrStructurePage() {
 
         <section className="glass-card overflow-hidden">
           <div className="border-b border-surface-border px-4 py-3">
-            <h3 className="font-semibold">Positions</h3>
+            <h3 className="font-semibold">Лауазымдар</h3>
           </div>
           <div className="divide-y divide-surface-border">
             {positions.map((position) => (
@@ -192,13 +192,13 @@ export default function HrStructurePage() {
                     <p className="mt-1 text-sm text-gray-400">{position.department_name}</p>
                   </div>
                   <Badge
-                    label={position.is_active ? "Active" : "Inactive"}
+                    label={position.is_active ? "Белсенді" : "Белсенді емес"}
                     variant={position.is_active ? "approved" : "rejected"}
                   />
                 </div>
                 <div className="mt-3 flex gap-3 text-xs text-gray-500">
-                  <span>{position.employees_count} employees</span>
-                  <span>{Number(position.base_salary).toLocaleString()} ₸ base</span>
+                  <span>{position.employees_count} қызметкер</span>
+                  <span>{Number(position.base_salary).toLocaleString()} ₸ базалық</span>
                 </div>
               </div>
             ))}

@@ -18,6 +18,17 @@ const variants: Record<string, string> = {
 };
 
 export function Badge({ label, variant }: { label: string; variant: string }) {
+  const translatedLabel =
+    {
+      admin: "Әкімші",
+      manager: "Менеджер",
+      employee: "Қызметкер",
+      income: "Табыс",
+      expense: "Шығын",
+      active: "Белсенді",
+      inactive: "Белсенді емес",
+    }[label] ?? label;
+
   return (
     <span
       className={clsx(
@@ -25,7 +36,7 @@ export function Badge({ label, variant }: { label: string; variant: string }) {
         variants[variant] ?? "border-gray-400/20 bg-gray-500/15 text-gray-300"
       )}
     >
-      {label}
+      {translatedLabel}
     </span>
   );
 }

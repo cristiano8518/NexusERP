@@ -10,7 +10,7 @@ from datetime import date
 
 
 class Command(BaseCommand):
-    help = "Create demo admin, manager, employee and sample data"
+    help = "Demo admin, manager, employee және бастапқы деректерді жасау"
 
     def handle(self, *args, **options):
         admin, _ = User.objects.get_or_create(
@@ -63,6 +63,16 @@ class Command(BaseCommand):
             defaults={"base_salary": 500000},
         )
 
+        if not hasattr(manager, "employee_profile"):
+            Employee.objects.create(
+                user=manager,
+                department=dept,
+                position=pos,
+                employee_id="MGR-001",
+                hire_date=date.today(),
+                salary=500000,
+            )
+
         if not hasattr(employee_user, "employee_profile"):
             Employee.objects.create(
                 user=employee_user,
@@ -71,6 +81,7 @@ class Command(BaseCommand):
                 employee_id="EMP-001",
                 hire_date=date.today(),
                 salary=350000,
+                manager=getattr(manager, "employee_profile", None),
             )
 
         cat, _ = Category.objects.get_or_create(name="Жабдықтар")
@@ -140,7 +151,7 @@ class Command(BaseCommand):
             defaults={
                 "entry_type": FinanceEntry.EntryType.INCOME,
                 "amount": 1200000,
-                "category": "Sales",
+                "category": "Сату",
                 "created_by": manager,
             },
         )

@@ -21,28 +21,28 @@ def generate_report_csv_task(report_type: str) -> dict:
 
     report_map = {
         "tasks": (
-            ["ID", "Title", "Status", "Priority", "Progress", "Deadline"],
+            ["ID", "Атауы", "Статус", "Басымдық", "Прогресс", "Мерзім"],
             [
                 [task.id, task.title, task.status, task.priority, task.progress, task.deadline or ""]
                 for task in Task.objects.all()
             ],
         ),
         "finance": (
-            ["ID", "Type", "Title", "Category", "Amount", "Date"],
+            ["ID", "Түрі", "Атауы", "Категория", "Сома", "Күні"],
             [
                 [entry.id, entry.entry_type, entry.title, entry.category, entry.amount, entry.entry_date]
                 for entry in FinanceEntry.objects.all()
             ],
         ),
         "warehouse": (
-            ["SKU", "Name", "Quantity", "Min stock", "Price"],
+            ["SKU", "Атауы", "Саны", "Минимум қор", "Бағасы"],
             [
                 [product.sku, product.name, product.quantity, product.min_stock_level, product.price]
                 for product in Product.objects.all()
             ],
         ),
         "employees": (
-            ["Employee ID", "Username", "Role", "Department", "Position"],
+            ["Қызметкер ID", "Логин", "Рөл", "Бөлім", "Лауазым"],
             [
                 [
                     employee.employee_id,
@@ -57,7 +57,7 @@ def generate_report_csv_task(report_type: str) -> dict:
     }
 
     if report_type not in report_map:
-        raise ValueError(f"Unsupported report type: {report_type}")
+        raise ValueError(f"Қолдау көрсетілмейтін есеп түрі: {report_type}")
 
     headers, rows = report_map[report_type]
     with file_path.open("w", newline="", encoding="utf-8-sig") as report_file:

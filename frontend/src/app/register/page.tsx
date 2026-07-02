@@ -68,7 +68,7 @@ export default function RegisterPage() {
             N
           </div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200">
-            Create account
+            Аккаунт ашу
           </p>
           <h1 className="mt-3 text-3xl font-black gradient-text">Тіркелу</h1>
           <p className="mt-2 text-sm text-gray-400">Жаңа қызметкер аккаунты</p>
@@ -76,7 +76,7 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-3">
           {field("username", "Логин")}
-          {field("email", "Email", "email")}
+          {field("email", "Электрондық пошта", "email")}
           {field("first_name", "Аты")}
           {field("last_name", "Тегі")}
           {field("password", "Пароль", "password")}

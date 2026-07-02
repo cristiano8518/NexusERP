@@ -4,20 +4,20 @@ from django.db import models
 
 class Notification(models.Model):
     class Type(models.TextChoices):
-        TASK_ASSIGNED = "task_assigned", "Task assigned"
-        TASK_STARTED = "task_started", "Task started"
-        TASK_SUBMITTED = "task_submitted", "Task submitted"
-        TASK_APPROVED = "task_approved", "Task approved"
-        TASK_REJECTED = "task_rejected", "Task rejected"
-        TASK_COMMENT = "task_comment", "Task comment"
-        DEADLINE = "deadline", "Deadline"
-        LOW_STOCK = "low_stock", "Low stock"
-        SYSTEM = "system", "System"
+        TASK_ASSIGNED = "task_assigned", "Тапсырма берілді"
+        TASK_STARTED = "task_started", "Тапсырма басталды"
+        TASK_SUBMITTED = "task_submitted", "Тексеруге жіберілді"
+        TASK_APPROVED = "task_approved", "Тапсырма бекітілді"
+        TASK_REJECTED = "task_rejected", "Тапсырма қайтарылды"
+        TASK_COMMENT = "task_comment", "Тапсырма пікірі"
+        DEADLINE = "deadline", "Мерзім"
+        LOW_STOCK = "low_stock", "Төмен қор"
+        SYSTEM = "system", "Жүйе"
 
     class Priority(models.TextChoices):
-        LOW = "low", "Low"
-        NORMAL = "normal", "Normal"
-        HIGH = "high", "High"
+        LOW = "low", "Төмен"
+        NORMAL = "normal", "Қалыпты"
+        HIGH = "high", "Жоғары"
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,

@@ -40,13 +40,13 @@ const ROLE_LOGIC: Record<User["role"], string[]> = {
   ],
   manager: [
     "Тапсырмаларды құрады, өзгертеді және өшіреді",
-    "Employee жұмысын approve/reject жасайды",
+    "Қызметкер жұмысын бекітеді немесе қайтарады",
     "HR, қойма, қаржы және есептерді басқарады",
   ],
   employee: [
     "Тек өзіне берілген тапсырмаларды көреді",
-    "Progress жаңартады және жұмысты тексеруге жібереді",
-    "Комментарий жазып, workflow арқылы жұмыс істейді",
+    "Прогресті жаңартады және жұмысты тексеруге жібереді",
+    "Пікір жазып, жұмыс процесі арқылы жұмыс істейді",
   ],
 };
 
@@ -82,6 +82,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
@@ -101,6 +102,7 @@ export default function ProfilePage() {
           phone: res.data.user.phone || "",
         });
       })
+      .catch(() => setLoadError("Профиль деректері жүктелмеді. Қайта кіріп көріңіз."))
       .finally(() => setLoading(false));
   }, []);
 
@@ -122,7 +124,7 @@ export default function ProfilePage() {
   const fullName =
     `${currentUser?.first_name || ""} ${currentUser?.last_name || ""}`.trim() ||
     currentUser?.username ||
-    "User";
+    "Пайдаланушы";
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -133,14 +135,29 @@ export default function ProfilePage() {
       await refreshUser();
       toast.success("Профиль жаңартылды", "Негізгі ақпарат сақталды.");
     } catch {
-      toast.error("Профиль сақталмады", "Email бос емес болуы мүмкін немесе backend қатесі.");
+      toast.error("Профиль сақталмады", "Электрондық пошта бос емес болуы мүмкін немесе сервер қатесі.");
     } finally {
       setSaving(false);
     }
   }
 
-  if (loading || !currentUser) {
+  if (loading) {
     return <LoadingState label="Профиль жүктелуде..." />;
+  }
+
+  if (loadError) {
+    return (
+      <div>
+        <PageHeader title="Профиль" description="Аккаунт деректері" />
+        <p className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {loadError}
+        </p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <LoadingState label="Пайдаланушы дерегі дайындалуда..." />;
   }
 
   const taskSummary = employee?.task_summary;
@@ -163,7 +180,7 @@ export default function ProfilePage() {
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <Badge label={ROLE_LABELS[currentUser.role]} variant={currentUser.role} />
                 <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200">
-                  Active account
+                  Белсенді аккаунт
                 </span>
               </div>
               <h1 className="text-4xl font-black tracking-tight gradient-text">{fullName}</h1>
@@ -193,7 +210,7 @@ export default function ProfilePage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold">Жеке ақпарат</h2>
-                <p className="text-sm text-gray-400">Аты-жөніңіз, email және телефон нөмірі</p>
+                <p className="text-sm text-gray-400">Аты-жөніңіз, электрондық пошта және телефон нөмірі</p>
               </div>
             </div>
 
@@ -217,7 +234,7 @@ export default function ProfilePage() {
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block text-sm text-gray-400">Email</span>
+                <span className="mb-1 block text-sm text-gray-400">Электрондық пошта</span>
                 <input
                   type="email"
                   value={form.email}
@@ -256,27 +273,27 @@ export default function ProfilePage() {
 
             {employee ? (
               <div className="grid gap-4 md:grid-cols-2">
-                <StatCard label="Employee ID" value={employee.employee_id} />
-                <StatCard label="Status" value={employee.is_active ? "Active" : "Inactive"} tone="text-emerald-200" />
+                <StatCard label="Қызметкер ID" value={employee.employee_id} />
+                <StatCard label="Статус" value={employee.is_active ? "Белсенді" : "Белсенді емес"} tone="text-emerald-200" />
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Department</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Бөлім</p>
                   <p className="mt-3 text-lg font-bold">{employee.department_name || "—"}</p>
                 </div>
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Position</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Лауазым</p>
                   <p className="mt-3 text-lg font-bold">{employee.position_title || "—"}</p>
                 </div>
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Manager</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Жетекші</p>
                   <p className="mt-3 text-lg font-bold">{employee.manager_name || "—"}</p>
                 </div>
                 <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Hire Date</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Жұмысқа қабылданған күн</p>
                   <p className="mt-3 text-lg font-bold">{formatDate(employee.hire_date)}</p>
                 </div>
                 {employee.salary && (
                   <div className="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4 md:col-span-2">
-                    <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/70">Salary visibility</p>
+                    <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/70">Жалақы</p>
                     <p className="mt-3 text-2xl font-black text-emerald-200">
                       {Number(employee.salary).toLocaleString()} ₸
                     </p>
@@ -287,7 +304,7 @@ export default function ProfilePage() {
               <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-6 text-center">
                 <p className="font-semibold text-gray-200">HR карточка әлі байланыспаған</p>
                 <p className="mt-2 text-sm text-gray-500">
-                  Admin қызметкер профилін Employees бөлімінен жасай алады.
+                  Әкімші қызметкер профилін Қызметкерлер бөлімінен жасай алады.
                 </p>
               </div>
             )}
@@ -301,7 +318,7 @@ export default function ProfilePage() {
                 <Shield className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-xl font-bold">Role логикасы</h2>
+                <h2 className="text-xl font-bold">Рөл логикасы</h2>
                 <p className="text-sm text-gray-400">{ROLE_LABELS[currentUser.role]} мүмкіндіктері</p>
               </div>
             </div>
@@ -322,17 +339,17 @@ export default function ProfilePage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold">Жұмыс статистикасы</h2>
-                <p className="text-sm text-gray-400">Task performance snapshot</p>
+                <p className="text-sm text-gray-400">Тапсырма нәтижелерінің қысқаша көрінісі</p>
               </div>
             </div>
 
             {taskSummary ? (
               <>
                 <div className="grid grid-cols-2 gap-3">
-                  <StatCard label="Total" value={taskSummary.total} />
-                  <StatCard label="Rate" value={`${taskSummary.completion_rate}%`} tone="text-cyan-200" />
-                  <StatCard label="In Progress" value={taskSummary.in_progress} tone="text-blue-200" />
-                  <StatCard label="Approved" value={taskSummary.approved} tone="text-emerald-200" />
+                  <StatCard label="Барлығы" value={taskSummary.total} />
+                  <StatCard label="Аяқталу %" value={`${taskSummary.completion_rate}%`} tone="text-cyan-200" />
+                  <StatCard label="Орындалуда" value={taskSummary.in_progress} tone="text-blue-200" />
+                  <StatCard label="Бекітілді" value={taskSummary.approved} tone="text-emerald-200" />
                 </div>
                 <div className="mt-5 h-3 overflow-hidden rounded-full bg-white/5">
                   <div
@@ -343,17 +360,17 @@ export default function ProfilePage() {
               </>
             ) : (
               <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-400">
-                Task summary HR карточкамен бірге шығады.
+                Тапсырма статистикасы HR карточкамен бірге шығады.
               </p>
             )}
           </section>
 
           <section className="premium-card p-6">
-            <h2 className="mb-4 text-xl font-bold">Account details</h2>
+            <h2 className="mb-4 text-xl font-bold">Аккаунт деректері</h2>
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-3 rounded-2xl bg-white/5 p-3">
                 <Mail className="h-4 w-4 text-cyan-200" />
-                <span className="text-gray-300">{currentUser.email || "Email жоқ"}</span>
+                <span className="text-gray-300">{currentUser.email || "Электрондық пошта жоқ"}</span>
               </div>
               <div className="flex items-center gap-3 rounded-2xl bg-white/5 p-3">
                 <Phone className="h-4 w-4 text-cyan-200" />
@@ -361,11 +378,11 @@ export default function ProfilePage() {
               </div>
               <div className="flex items-center gap-3 rounded-2xl bg-white/5 p-3">
                 <CalendarDays className="h-4 w-4 text-cyan-200" />
-                <span className="text-gray-300">Joined: {formatDate(currentUser.date_joined)}</span>
+                <span className="text-gray-300">Тіркелген күні: {formatDate(currentUser.date_joined)}</span>
               </div>
               <div className="flex items-center gap-3 rounded-2xl bg-white/5 p-3">
                 <BadgeCheck className="h-4 w-4 text-cyan-200" />
-                <span className="text-gray-300">User ID: #{currentUser.id}</span>
+                <span className="text-gray-300">Пайдаланушы ID: #{currentUser.id}</span>
               </div>
             </div>
           </section>
@@ -377,7 +394,7 @@ export default function ProfilePage() {
               </div>
               <div>
                 <h2 className="font-bold">Менің тапсырмаларым</h2>
-                <p className="text-sm text-gray-400">Workflow және progress басқару</p>
+                <p className="text-sm text-gray-400">Процесс пен прогресті басқару</p>
               </div>
             </div>
           </Link>
