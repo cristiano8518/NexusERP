@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    AuditLogListView,
     CustomTokenObtainPairView,
     CustomTokenRefreshView,
     MeView,
@@ -14,4 +15,5 @@ urlpatterns = [
     path("refresh/", CustomTokenRefreshView.as_view(), name="auth-refresh"),
     path("me/", MeView.as_view(), name="auth-me"),
     path("security-logs/", SecurityLogListView.as_view(), name="auth-security-logs"),
+    path("audit-logs/", AuditLogListView.as_view(), name="auth-audit-logs"),
 ]

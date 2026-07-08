@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermission } from "@/hooks/usePermission";
+import { Perm, hasPermission } from "@/lib/permissions";
 import { Badge } from "@/components/ui/Badge";
 import type { PaginatedResponse, Task } from "@/lib/types";
 import { BarChart3, CheckSquare, Package, Users } from "lucide-react";
@@ -135,34 +137,58 @@ function DashboardTaskBoard({ tasks }: { tasks: Task[] }) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { can, permissions } = usePermission();
   const [data, setData] = useState<DashboardData | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskCount, setTaskCount] = useState<number | null>(null);
   const [apiError, setApiError] = useState("");
 
   useEffect(() => {
-    setApiError("");
-    if (user?.role === "admin" || user?.role === "manager") {
+    let cancelled = false;
+    const canViewAnalytics =
+      hasPermission(permissions, Perm.ANALYTICS_VIEW_COMPANY) ||
+      hasPermission(permissions, Perm.ANALYTICS_VIEW_DEPARTMENT);
+
+    if (canViewAnalytics) {
       api
         .get("/analytics/dashboard/")
-        .then((res) => setData(res.data.data))
+        .then((res) => {
+          if (!cancelled) {
+            setData(res.data.data);
+            setApiError("");
+          }
+        })
         .catch((err: { response?: { status?: number; data?: unknown } }) => {
-          setData(null);
-          setApiError(
-            `API қатесі (${err.response?.status ?? "?"}). Backend қайта іске қосыңыз: docker compose up --build`
-          );
+          if (!cancelled) {
+            setData(null);
+            setApiError(
+              `API қатесі (${err.response?.status ?? "?"}). Backend қайта іске қосыңыз: docker compose up --build`
+            );
+          }
         });
+    } else if (!cancelled) {
+      setData(null);
+      setApiError("");
     }
+
     api
       .get<PaginatedResponse<Task>>("/tasks/")
       .then((res) => {
-        setTasks(res.data.results);
-        setTaskCount(res.data.count ?? res.data.results.length);
+        if (!cancelled) {
+          setTasks(res.data.results);
+          setTaskCount(res.data.count ?? res.data.results.length);
+        }
       })
-      .catch(() => setTaskCount(0));
-  }, [user]);
+      .catch(() => {
+        if (!cancelled) setTaskCount(0);
+      });
 
-  const isEmployee = user?.role === "employee";
+    return () => {
+      cancelled = true;
+    };
+  }, [user, permissions]);
+
+  const isEmployee = !can(Perm.ANALYTICS_VIEW_COMPANY) && !can(Perm.ANALYTICS_VIEW_DEPARTMENT);
 
   return (
     <div>

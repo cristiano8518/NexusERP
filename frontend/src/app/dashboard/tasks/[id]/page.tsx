@@ -15,11 +15,13 @@ import {
   XCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Employee, PaginatedResponse, TaskDetail } from "@/lib/types";
+import type { Employee, PaginatedResponse, TaskAttachment, TaskDetail } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useAuth } from "@/contexts/AuthContext";
+import { usePermission } from "@/hooks/usePermission";
+import { Perm } from "@/lib/permissions";
+import { t } from "@/lib/i18n";
 import { useToast } from "@/contexts/ToastContext";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -74,7 +76,7 @@ function WorkflowStep({
 export default function TaskDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
+  const { can, canAny } = usePermission();
   const toast = useToast();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -93,8 +95,8 @@ export default function TaskDetailPage() {
     deadline: "",
   });
 
-  const isManager = user?.role === "admin" || user?.role === "manager";
-  const isEmployee = user?.role === "employee";
+  const canManage = canAny(Perm.TASKS_CREATE, Perm.TASKS_UPDATE, Perm.TASKS_ASSIGN, Perm.TASKS_APPROVE);
+  const canWork = can(Perm.TASKS_UPDATE_OWN_PROGRESS);
 
   const loadTask = useCallback(() => {
     setLoading(true);
@@ -110,12 +112,12 @@ export default function TaskDetailPage() {
 
   useEffect(() => {
     loadTask();
-    if (isManager) {
+    if (canManage) {
       api.get<PaginatedResponse<Employee>>("/employees/").then((res) => {
         setEmployees(res.data.results);
       });
     }
-  }, [loadTask, isManager]);
+  }, [loadTask, canManage]);
 
   function startEdit() {
     if (!task) return;
@@ -213,7 +215,7 @@ export default function TaskDetailPage() {
         title={task.title}
         description="Тапсырма карточкасы, орындау тарихы және бекіту процесі"
         action={
-          isManager ? (
+          canManage ? (
             <div className="flex flex-wrap gap-2">
               <button onClick={startEdit} className="ghost-button px-4 py-2 text-sm">
                 <Pencil className="h-4 w-4" />
@@ -237,7 +239,7 @@ export default function TaskDetailPage() {
         </p>
       )}
 
-      {editing && isManager && (
+      {editing && canManage && (
         <form onSubmit={saveTask} className="glass-card mb-6 space-y-4 p-5">
           <div>
             <h3 className="font-semibold">Тапсырманы өзгерту</h3>
@@ -355,7 +357,7 @@ export default function TaskDetailPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2">
-              {isEmployee && ["assigned", "rejected"].includes(task.status) && (
+              {canWork && ["assigned", "rejected"].includes(task.status) && (
                 <button
                   onClick={() => transition("in_progress")}
                   className="inline-flex items-center gap-2 rounded-lg bg-blue-600/20 px-4 py-2 text-sm text-blue-300 hover:bg-blue-600/30"
@@ -364,7 +366,7 @@ export default function TaskDetailPage() {
                   Жұмысты бастау
                 </button>
               )}
-              {isEmployee && task.status === "in_progress" && (
+              {canWork && task.status === "in_progress" && (
                 <button
                   onClick={() => transition("done")}
                   className="inline-flex items-center gap-2 rounded-lg bg-emerald-600/20 px-4 py-2 text-sm text-emerald-300 hover:bg-emerald-600/30"
@@ -373,7 +375,7 @@ export default function TaskDetailPage() {
                   Тексеруге жіберу
                 </button>
               )}
-              {isManager && task.status === "done" && (
+              {can(Perm.TASKS_APPROVE) && task.status === "done" && (
                 <>
                   <button
                     onClick={() => transition("approved")}
@@ -393,7 +395,7 @@ export default function TaskDetailPage() {
               )}
             </div>
 
-            {(isManager || task.status === "done") && (
+            {(canManage || task.status === "done") && (
               <textarea
                 placeholder="Бекіту жазбасы / қайтару себебі..."
                 value={note}
@@ -439,6 +441,41 @@ export default function TaskDetailPage() {
               )}
             </div>
           </section>
+
+          {can(Perm.TASKS_ATTACH) && (
+            <section className="glass-card p-6">
+              <h3 className="mb-4 font-semibold">{t.attachments}</h3>
+              <input
+                type="file"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  try {
+                    await api.post(`/tasks/${params.id}/attachments/`, formData, {
+                      headers: { "Content-Type": "multipart/form-data" },
+                    });
+                    toast.success("Файл жүктелді");
+                    loadTask();
+                  } catch {
+                    toast.error("Файл жүктелмеді");
+                  }
+                }}
+                className="text-sm text-gray-400"
+              />
+              <div className="mt-3 space-y-2">
+                {(task.attachments ?? []).map((att: TaskAttachment) => (
+                  <div key={att.id} className="flex items-center justify-between rounded-xl bg-white/5 p-3 text-sm">
+                    <a href={att.file_url || "#"} target="_blank" rel="noreferrer" className="text-brand-300 hover:underline">
+                      {att.original_name}
+                    </a>
+                    <span className="text-xs text-gray-500">{(att.size / 1024).toFixed(1)} KB</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         <aside className="space-y-6">
@@ -451,11 +488,11 @@ export default function TaskDetailPage() {
               value={progress}
               onChange={(e) => setProgress(Number(e.target.value))}
               className="w-full"
-              disabled={!isEmployee || task.status !== "in_progress"}
+              disabled={!canWork || task.status !== "in_progress"}
             />
             <div className="mt-2 flex items-center justify-between text-sm">
               <span className="text-gray-400">{progress}%</span>
-              {isEmployee && task.status === "in_progress" && (
+              {canWork && task.status === "in_progress" && (
                 <button
                   onClick={saveProgress}
                   className="rounded-lg border border-surface-border px-3 py-1 text-xs hover:border-brand-500"
@@ -469,7 +506,7 @@ export default function TaskDetailPage() {
           <section className="glass-card p-6">
             <h3 className="mb-4 flex items-center gap-2 font-semibold">
               <RotateCcw className="h-4 w-4" />
-              Activity history
+              {t.activityHistory}
             </h3>
             <div className="space-y-4">
               {task.activities.map((activity) => (

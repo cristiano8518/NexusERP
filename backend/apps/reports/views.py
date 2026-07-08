@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.db.models import F, Sum
 from django.http import HttpResponse
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,7 +13,8 @@ from apps.employees.models import Employee
 from apps.finance.models import FinanceEntry
 from apps.tasks.models import Task
 from apps.warehouse.models import Product, StockMovement
-from common.permissions import IsManagerOrAdmin
+from common.rbac import Perm
+from common.rbac.checker import PermissionChecker
 from .tasks import generate_report_csv_task
 
 
@@ -31,46 +33,61 @@ def _csv_response(filename, headers, rows):
 
 
 def _department_scope(user):
-    if getattr(user, "role", None) == "manager" and hasattr(user, "employee_profile"):
-        return user.employee_profile.department_id
+    checker = PermissionChecker(user)
+    if checker.has(Perm.REPORTS_VIEW_ALL):
+        return None
+    if checker.has(Perm.REPORTS_VIEW_DEPARTMENT):
+        return checker.department_id()
     return None
 
 
+def _require_reports_view(user):
+    checker = PermissionChecker(user)
+    if not checker.has_any(Perm.REPORTS_VIEW_ALL, Perm.REPORTS_VIEW_DEPARTMENT):
+        raise PermissionDenied("Рұқсат жеткіліксіз.")
+
+
+def _require_reports_export(user):
+    checker = PermissionChecker(user)
+    if not checker.has(Perm.REPORTS_EXPORT):
+        raise PermissionDenied("Рұқсат жеткіліксіз.")
+
+
+def _scoped_products(department_id=None):
+    products = Product.objects.select_related("category").filter(is_active=True)
+    if department_id:
+        products = products.filter(
+            movements__created_by__employee_profile__department_id=department_id
+        ).distinct()
+    return products
+
+
 class ReportSummaryView(APIView):
-    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        _require_reports_view(request.user)
         department_id = _department_scope(request.user)
         employees = Employee.objects.all()
         tasks = Task.objects.all()
         finance = FinanceEntry.objects.all()
         movements = StockMovement.objects.all()
-        products = Product.objects.filter(is_active=True)
+        products = _scoped_products(department_id)
         if department_id:
             employees = employees.filter(department_id=department_id)
             tasks = tasks.filter(assignee__department_id=department_id)
             finance = finance.filter(created_by__employee_profile__department_id=department_id)
             movements = movements.filter(created_by__employee_profile__department_id=department_id)
-            products = products.filter(
-                movements__created_by__employee_profile__department_id=department_id
-            ).distinct()
 
-        income = finance.filter(entry_type=FinanceEntry.EntryType.INCOME).aggregate(
-            total=Sum("amount")
-        )["total"]
-        expense = finance.filter(entry_type=FinanceEntry.EntryType.EXPENSE).aggregate(
-            total=Sum("amount")
-        )["total"]
+        income = finance.filter(entry_type=FinanceEntry.EntryType.INCOME).aggregate(total=Sum("amount"))["total"]
+        expense = finance.filter(entry_type=FinanceEntry.EntryType.EXPENSE).aggregate(total=Sum("amount"))["total"]
         now = timezone.now()
         task_total = tasks.count()
         task_done = tasks.filter(status__in=[Task.Status.DONE, Task.Status.APPROVED]).count()
-        task_overdue = tasks.filter(
-            deadline__lt=now,
-        ).exclude(status__in=[Task.Status.DONE, Task.Status.APPROVED]).count()
-        low_stock = products.filter(
-            is_active=True,
-            quantity__lte=F("min_stock_level"),
+        task_overdue = tasks.filter(deadline__lt=now).exclude(
+            status__in=[Task.Status.DONE, Task.Status.APPROVED]
         ).count()
+        low_stock = products.filter(quantity__lte=F("min_stock_level")).count()
 
         return Response(
             {
@@ -104,9 +121,10 @@ class ReportSummaryView(APIView):
 
 
 class AsyncReportView(APIView):
-    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        _require_reports_export(request.user)
         report_type = request.data.get("report_type", "finance")
         if report_type not in {"tasks", "finance", "warehouse", "employees"}:
             return Response(
@@ -116,7 +134,8 @@ class AsyncReportView(APIView):
                 },
                 status=400,
             )
-        async_result = generate_report_csv_task.delay(report_type)
+        department_id = _department_scope(request.user)
+        async_result = generate_report_csv_task.delay(report_type, department_id=department_id)
         return Response(
             {
                 "success": True,
@@ -128,9 +147,10 @@ class AsyncReportView(APIView):
 
 
 class TaskReportCsvView(APIView):
-    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        _require_reports_export(request.user)
         rows = []
         tasks = Task.objects.select_related("created_by", "assignee", "assignee__user")
         department_id = _department_scope(request.user)
@@ -170,9 +190,10 @@ class TaskReportCsvView(APIView):
 
 
 class FinanceReportCsvView(APIView):
-    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        _require_reports_export(request.user)
         rows = []
         entries = FinanceEntry.objects.select_related("created_by")
         department_id = _department_scope(request.user)
@@ -199,11 +220,13 @@ class FinanceReportCsvView(APIView):
 
 
 class WarehouseReportCsvView(APIView):
-    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        _require_reports_export(request.user)
         rows = []
-        products = Product.objects.select_related("category")
+        department_id = _department_scope(request.user)
+        products = _scoped_products(department_id)
         for product in products:
             rows.append(
                 [
@@ -236,12 +259,14 @@ class WarehouseReportCsvView(APIView):
 
 
 class EmployeeReportCsvView(APIView):
-    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        _require_reports_export(request.user)
         rows = []
         employees = Employee.objects.select_related("user", "department", "position", "manager")
         department_id = _department_scope(request.user)
+        checker = PermissionChecker(request.user)
         if department_id:
             employees = employees.filter(department_id=department_id)
         for employee in employees:
@@ -253,7 +278,7 @@ class EmployeeReportCsvView(APIView):
                     employee.user.role,
                     employee.department.name,
                     employee.position.title,
-                    employee.salary if request.user.role == "admin" else "жасырын",
+                    employee.salary if checker.has(Perm.SYSTEM_MANAGE) else "жасырын",
                     employee.hire_date,
                     "белсенді" if employee.is_active else "белсенді емес",
                 ]

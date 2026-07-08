@@ -74,3 +74,6 @@ class SecurityLog(models.Model):
 
     def __str__(self):
         return f"{self.event_type} @ {self.created_at}"
+
+
+from .audit_models import AuditLog  # noqa: E402, F401

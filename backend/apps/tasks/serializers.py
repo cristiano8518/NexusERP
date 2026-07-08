@@ -1,6 +1,31 @@
 from rest_framework import serializers
 
-from .models import Task, TaskActivity, TaskComment
+from .models import Task, TaskActivity, TaskAttachment, TaskComment
+
+
+class TaskAttachmentSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source="uploaded_by.username", read_only=True)
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskAttachment
+        fields = (
+            "id",
+            "file",
+            "file_url",
+            "original_name",
+            "size",
+            "uploaded_by",
+            "uploaded_by_name",
+            "created_at",
+        )
+        read_only_fields = ("id", "uploaded_by", "uploaded_by_name", "created_at", "size", "original_name")
+
+    def get_file_url(self, obj):
+        request = self.context.get("request")
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url if obj.file else None
 
 
 class TaskActivitySerializer(serializers.ModelSerializer):
@@ -94,6 +119,7 @@ class TaskSerializer(serializers.ModelSerializer):
 class TaskDetailSerializer(TaskSerializer):
     comments = TaskCommentSerializer(many=True, read_only=True)
     activities = TaskActivitySerializer(many=True, read_only=True)
+    attachments = TaskAttachmentSerializer(many=True, read_only=True)
 
     class Meta(TaskSerializer.Meta):
-        fields = TaskSerializer.Meta.fields + ("comments", "activities")
+        fields = TaskSerializer.Meta.fields + ("comments", "activities", "attachments")

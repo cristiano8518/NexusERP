@@ -5,9 +5,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from common.permissions import IsManagerOrAdmin
+from common.rbac import Perm
+from common.rbac.checker import PermissionChecker
 from .models import Notification
-from .serializers import NotificationSerializer
+from .serializers import NotificationPreferenceSerializer, NotificationSerializer
+from .services import get_or_create_preferences
 from .tasks import send_bulk_email_task
 
 
@@ -51,9 +53,13 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class BulkEmailView(APIView):
-    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        if not PermissionChecker(request.user).has(Perm.NOTIFICATIONS_BULK_EMAIL):
+            from rest_framework.exceptions import PermissionDenied
+
+            raise PermissionDenied("Рұқсат жеткіліксіз.")
         subject = (request.data.get("subject") or "").strip()
         message = (request.data.get("message") or "").strip()
         role = request.data.get("role")
@@ -76,3 +82,20 @@ class BulkEmailView(APIView):
             },
             status=status.HTTP_202_ACCEPTED,
         )
+
+
+class NotificationPreferenceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        prefs = get_or_create_preferences(request.user)
+        return Response(
+            {"success": True, "preferences": NotificationPreferenceSerializer(prefs).data}
+        )
+
+    def patch(self, request):
+        prefs = get_or_create_preferences(request.user)
+        serializer = NotificationPreferenceSerializer(prefs, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"success": True, "preferences": serializer.data})

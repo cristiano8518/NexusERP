@@ -20,7 +20,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { data } = await api.post<AuthResponse>("/auth/login/", { username, password });
-      login(data.access, data.refresh, data.user);
+      login(data.access, data.refresh, data.user, data.permissions ?? []);
       router.push("/dashboard");
     } catch (err: unknown) {
       const ax = err as { response?: { status?: number }; message?: string };

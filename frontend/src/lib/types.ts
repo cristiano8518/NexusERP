@@ -1,3 +1,66 @@
+export type AuditLog = {
+  id: number;
+  actor_name: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  message: string;
+  changes: Record<string, unknown>;
+  ip_address: string | null;
+  created_at: string;
+};
+
+export type TaskAttachment = {
+  id: number;
+  file: string;
+  file_url: string | null;
+  original_name: string;
+  size: number;
+  uploaded_by: number | null;
+  uploaded_by_name: string | null;
+  created_at: string;
+};
+
+export type PerformanceStats = {
+  departments: Array<{
+    id: number;
+    name: string;
+    employee_count: number;
+    manager_name: string | null;
+    tasks_total: number;
+    tasks_completed: number;
+    tasks_overdue: number;
+    completion_rate: number;
+  }>;
+  managers: Array<{
+    id: number;
+    name: string;
+    department: string;
+    team_size: number;
+    tasks_total: number;
+    tasks_completed: number;
+    completion_rate: number;
+  }>;
+  employees: Array<{
+    id: number;
+    name: string;
+    department: string;
+    active_tasks: number;
+    tasks_total: number;
+    tasks_completed: number;
+    tasks_overdue: number;
+    completion_rate: number;
+    workload: string;
+  }>;
+};
+
+export type NotificationPreference = {
+  email_enabled: boolean;
+  in_app_enabled: boolean;
+  muted_types: string[];
+  updated_at: string;
+};
+
 export type PaginatedResponse<T> = {
   count: number;
   next: string | null;
@@ -16,6 +79,7 @@ export type Employee = {
   manager: number | null;
   manager_name: string | null;
   is_active: boolean;
+  is_blocked?: boolean;
   hire_date: string;
   created_at: string;
   user: {
@@ -35,6 +99,11 @@ export type EmployeeDetail = Employee & {
     done: number;
     approved: number;
     completion_rate: number;
+    overdue?: number;
+  };
+  workload?: {
+    active_tasks: number;
+    status: string;
   };
   recent_tasks: Array<{
     id: number;
@@ -93,6 +162,7 @@ export type TaskActivity = {
 export type TaskDetail = Task & {
   comments: TaskComment[];
   activities: TaskActivity[];
+  attachments?: TaskAttachment[];
 };
 
 export type Product = {
@@ -125,6 +195,9 @@ export type Department = {
   id: number;
   name: string;
   description: string;
+  manager: number | null;
+  manager_id: number | null;
+  manager_name: string | null;
   is_active: boolean;
   employees_count: number;
   positions_count: number;

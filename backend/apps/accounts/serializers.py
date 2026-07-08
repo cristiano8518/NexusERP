@@ -2,6 +2,7 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 from .models import Role, SecurityLog, User
+from .audit_models import AuditLog
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -56,3 +57,21 @@ class SecurityLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = SecurityLog
         fields = ("id", "username", "event_type", "ip_address", "metadata", "created_at")
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    actor_name = serializers.CharField(source="actor.username", read_only=True, default=None)
+
+    class Meta:
+        model = AuditLog
+        fields = (
+            "id",
+            "actor_name",
+            "action",
+            "resource_type",
+            "resource_id",
+            "message",
+            "changes",
+            "ip_address",
+            "created_at",
+        )

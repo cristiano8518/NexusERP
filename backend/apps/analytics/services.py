@@ -2,10 +2,12 @@ import logging
 import time
 
 from django.core.cache import cache
-from django.db.models import DecimalField, F, Sum, Value
+from django.db.models import Count, DecimalField, F, Q, Sum, Value
 from django.db.models.functions import Coalesce
+from django.utils import timezone
 
-from apps.employees.models import Employee
+from apps.accounts.models import Role, User
+from apps.employees.models import Department, Employee
 from apps.finance.models import FinanceEntry
 from apps.tasks.models import Task
 from apps.warehouse.models import Product
@@ -30,19 +32,31 @@ def _cache_set(key, value, ttl=CACHE_TTL):
         logger.warning("Cache set failed: %s", exc)
 
 
+def _scoped_employee_qs(department_id=None):
+    qs = Employee.objects.filter(is_active=True)
+    if department_id:
+        qs = qs.filter(department_id=department_id)
+    return qs
+
+
+def _scoped_task_qs(department_id=None):
+    qs = Task.objects.all()
+    if department_id:
+        qs = qs.filter(assignee__department_id=department_id)
+    return qs
+
+
 def get_dashboard_stats(department_id=None):
     cache_key = f"analytics:dashboard:stats:{department_id or 'all'}"
     cached = _cache_get(cache_key)
     if cached:
         return cached
 
-    employee_qs = Employee.objects.filter(is_active=True)
-    task_qs = Task.objects.all()
+    employee_qs = _scoped_employee_qs(department_id)
+    task_qs = _scoped_task_qs(department_id)
     finance_qs = FinanceEntry.objects.all()
     product_qs = Product.objects.filter(is_active=True)
     if department_id:
-        employee_qs = employee_qs.filter(department_id=department_id)
-        task_qs = task_qs.filter(assignee__department_id=department_id)
         finance_qs = finance_qs.filter(created_by__employee_profile__department_id=department_id)
         product_qs = product_qs.filter(
             movements__created_by__employee_profile__department_id=department_id
@@ -51,6 +65,15 @@ def get_dashboard_stats(department_id=None):
     total_tasks = task_qs.count()
     completed_tasks = task_qs.filter(
         status__in=[Task.Status.DONE, Task.Status.APPROVED]
+    ).count()
+    overdue_tasks = task_qs.filter(
+        deadline__lt=timezone.now(),
+        status__in=[
+            Task.Status.ASSIGNED,
+            Task.Status.IN_PROGRESS,
+            Task.Status.DONE,
+            Task.Status.REJECTED,
+        ],
     ).count()
 
     zero_money = Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))
@@ -64,18 +87,31 @@ def get_dashboard_stats(department_id=None):
     stats = {
         "employees": {
             "total": employee_qs.count(),
+            "managers": employee_qs.filter(user__role=Role.MANAGER).count(),
+            "workers": employee_qs.filter(user__role=Role.EMPLOYEE).count(),
+        },
+        "departments": {
+            "total": Department.objects.filter(is_active=True).count()
+            if not department_id
+            else 1,
         },
         "tasks": {
             "total": total_tasks,
+            "active": task_qs.filter(
+                status__in=[
+                    Task.Status.ASSIGNED,
+                    Task.Status.IN_PROGRESS,
+                    Task.Status.REJECTED,
+                ]
+            ).count(),
             "completed": completed_tasks,
+            "overdue": overdue_tasks,
             "in_progress": task_qs.filter(status=Task.Status.IN_PROGRESS).count(),
             "completion_rate": round(100 * completed_tasks / total_tasks, 1) if total_tasks else 0,
         },
         "warehouse": {
             "products": product_qs.count(),
-            "low_stock": product_qs
-            .filter(quantity__lte=F("min_stock_level"))
-            .count(),
+            "low_stock": product_qs.filter(quantity__lte=F("min_stock_level")).count(),
         },
         "finance": {
             "income": float(income or 0),
@@ -86,6 +122,121 @@ def get_dashboard_stats(department_id=None):
 
     _cache_set(cache_key, stats)
     return stats
+
+
+def get_performance_stats(department_id=None):
+    """Per-department, per-manager, per-employee productivity metrics."""
+    cache_key = f"analytics:performance:{department_id or 'all'}"
+    cached = _cache_get(cache_key)
+    if cached:
+        return cached
+
+    now = timezone.now()
+    departments_qs = Department.objects.filter(is_active=True)
+    if department_id:
+        departments_qs = departments_qs.filter(id=department_id)
+
+    departments = []
+    for dept in departments_qs.annotate(
+        employee_count=Count("employees", filter=Q(employees__is_active=True)),
+    ):
+        dept_tasks = Task.objects.filter(assignee__department_id=dept.id)
+        total = dept_tasks.count()
+        completed = dept_tasks.filter(status__in=[Task.Status.DONE, Task.Status.APPROVED]).count()
+        overdue = dept_tasks.filter(
+            deadline__lt=now,
+            status__in=[
+                Task.Status.ASSIGNED,
+                Task.Status.IN_PROGRESS,
+                Task.Status.DONE,
+                Task.Status.REJECTED,
+            ],
+        ).count()
+        departments.append(
+            {
+                "id": dept.id,
+                "name": dept.name,
+                "employee_count": dept.employee_count,
+                "manager_name": str(dept.manager) if dept.manager else None,
+                "tasks_total": total,
+                "tasks_completed": completed,
+                "tasks_overdue": overdue,
+                "completion_rate": round(100 * completed / total, 1) if total else 0,
+            }
+        )
+
+    managers = []
+    manager_qs = Employee.objects.filter(
+        is_active=True,
+        user__role=Role.MANAGER,
+    ).select_related("user", "department")
+    if department_id:
+        manager_qs = manager_qs.filter(department_id=department_id)
+
+    for mgr in manager_qs:
+        team_tasks = Task.objects.filter(assignee__department_id=mgr.department_id)
+        total = team_tasks.count()
+        completed = team_tasks.filter(status__in=[Task.Status.DONE, Task.Status.APPROVED]).count()
+        managers.append(
+            {
+                "id": mgr.id,
+                "name": mgr.user.get_full_name() or mgr.user.username,
+                "department": mgr.department.name,
+                "team_size": Employee.objects.filter(
+                    department_id=mgr.department_id,
+                    is_active=True,
+                    user__role=Role.EMPLOYEE,
+                ).count(),
+                "tasks_total": total,
+                "tasks_completed": completed,
+                "completion_rate": round(100 * completed / total, 1) if total else 0,
+            }
+        )
+
+    employees = []
+    employee_qs = Employee.objects.filter(
+        is_active=True,
+        user__role=Role.EMPLOYEE,
+    ).select_related("user", "department")
+    if department_id:
+        employee_qs = employee_qs.filter(department_id=department_id)
+
+    for emp in employee_qs:
+        tasks = emp.tasks.all()
+        total = tasks.count()
+        completed = tasks.filter(status__in=[Task.Status.DONE, Task.Status.APPROVED]).count()
+        active = tasks.filter(
+            status__in=[Task.Status.ASSIGNED, Task.Status.IN_PROGRESS]
+        ).count()
+        overdue = tasks.filter(
+            deadline__lt=now,
+            status__in=[
+                Task.Status.ASSIGNED,
+                Task.Status.IN_PROGRESS,
+                Task.Status.REJECTED,
+            ],
+        ).count()
+        employees.append(
+            {
+                "id": emp.id,
+                "name": emp.user.get_full_name() or emp.user.username,
+                "department": emp.department.name,
+                "active_tasks": active,
+                "tasks_total": total,
+                "tasks_completed": completed,
+                "tasks_overdue": overdue,
+                "completion_rate": round(100 * completed / total, 1) if total else 0,
+                "workload": "busy" if active >= 3 else "normal",
+            }
+        )
+
+    result = {
+        "departments": departments,
+        "managers": managers,
+        "employees": employees,
+    }
+    _cache_set(cache_key, result)
+    return result
 
 
 def benchmark_dashboard_cache(department_id=None):

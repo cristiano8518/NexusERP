@@ -9,8 +9,9 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState, LoadingState } from "@/components/ui/StateBlock";
-import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
+import { usePermission } from "@/hooks/usePermission";
+import { Perm } from "@/lib/permissions";
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Жоба",
@@ -28,7 +29,7 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 export default function TasksPage() {
-  const { user } = useAuth();
+  const { can, canAny } = usePermission();
   const toast = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -46,7 +47,7 @@ export default function TasksPage() {
     deadline: "",
   });
 
-  const isManager = user?.role === "admin" || user?.role === "manager";
+  const isManager = canAny(Perm.TASKS_CREATE, Perm.TASKS_UPDATE, Perm.TASKS_ASSIGN);
 
   function resetForm() {
     setForm({ title: "", description: "", priority: "medium", assignee: "", deadline: "" });
@@ -356,7 +357,7 @@ export default function TasksPage() {
                     </button>
                   </>
                 )}
-                {user?.role === "employee" && task.status !== "approved" && (
+                {can(Perm.TASKS_UPDATE_OWN_PROGRESS) && task.status !== "approved" && (
                   <>
                     {["assigned", "rejected"].includes(task.status) && (
                       <button

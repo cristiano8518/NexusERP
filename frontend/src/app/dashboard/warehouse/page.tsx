@@ -8,14 +8,15 @@ import type { Category, PaginatedResponse, Product, StockMovement } from "@/lib/
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState, LoadingState } from "@/components/ui/StateBlock";
-import { useAuth } from "@/contexts/AuthContext";
+import { usePermission } from "@/hooks/usePermission";
+import { Perm } from "@/lib/permissions";
 import { useToast } from "@/contexts/ToastContext";
 
 type Tab = "products" | "movements";
 
 export default function WarehousePage() {
-  const { user } = useAuth();
   const toast = useToast();
+  const { can } = usePermission();
   const [tab, setTab] = useState<Tab>("products");
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
@@ -40,7 +41,7 @@ export default function WarehousePage() {
     auto_create_finance: true,
   });
 
-  const canEdit = user?.role === "admin" || user?.role === "manager";
+  const canEdit = can(Perm.WAREHOUSE_MANAGE);
 
   const load = useCallback(() => {
     setLoading(true);

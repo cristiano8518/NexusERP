@@ -1,11 +1,16 @@
 from django.db import transaction
 from rest_framework import viewsets
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.permissions import IsAuthenticated
 
 from apps.finance.models import FinanceEntry
 from apps.notifications.models import Notification
 from apps.notifications.services import notify_role
-from common.permissions import IsManagerOrAdmin
+from common.audit import log_audit_event
+from common.rbac import Perm
+from common.rbac.checker import PermissionChecker
+from common.rbac.drf_permissions import require_any_permission, require_permission
+from common.rbac.scope import scope_queryset
 
 from .models import Category, Product, StockMovement
 from .serializers import CategorySerializer, ProductSerializer, StockMovementSerializer
@@ -14,29 +19,51 @@ from .serializers import CategorySerializer, ProductSerializer, StockMovementSer
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [IsManagerOrAdmin]
+    permission_classes = [IsAuthenticated, require_permission(Perm.WAREHOUSE_MANAGE)]
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [
+                IsAuthenticated(),
+                require_any_permission(Perm.WAREHOUSE_VIEW_ALL, Perm.WAREHOUSE_VIEW_DEPARTMENT)(),
+            ]
+        return [IsAuthenticated(), require_permission(Perm.WAREHOUSE_MANAGE)()]
 
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.select_related("category").prefetch_related("movements")
     serializer_class = ProductSerializer
-    permission_classes = [IsManagerOrAdmin]
+    permission_classes = [IsAuthenticated]
     search_fields = ["name", "sku"]
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [
+                IsAuthenticated(),
+                require_any_permission(Perm.WAREHOUSE_VIEW_ALL, Perm.WAREHOUSE_VIEW_DEPARTMENT)(),
+            ]
+        return [IsAuthenticated(), require_permission(Perm.WAREHOUSE_MANAGE)()]
 
 
 class StockMovementViewSet(viewsets.ModelViewSet):
     queryset = StockMovement.objects.select_related("product", "created_by")
     serializer_class = StockMovementSerializer
-    permission_classes = [IsManagerOrAdmin]
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        qs = StockMovement.objects.select_related("product", "created_by")
-        if getattr(user, "role", None) == "admin":
-            return qs
-        if getattr(user, "role", None) == "manager" and hasattr(user, "employee_profile"):
-            return qs.filter(created_by__employee_profile__department_id=user.employee_profile.department_id)
-        return qs.none()
+        return scope_queryset(
+            StockMovement.objects.select_related("product", "created_by"),
+            self.request.user,
+            "warehouse_movements",
+        )
+
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [
+                IsAuthenticated(),
+                require_any_permission(Perm.WAREHOUSE_VIEW_ALL, Perm.WAREHOUSE_VIEW_DEPARTMENT)(),
+            ]
+        return [IsAuthenticated(), require_permission(Perm.WAREHOUSE_MANAGE)()]
 
     def perform_create(self, serializer):
         with transaction.atomic():
@@ -80,3 +107,10 @@ class StockMovementViewSet(viewsets.ModelViewSet):
                 link="/dashboard/warehouse",
                 metadata={"product_id": product.id},
             )
+        log_audit_event(
+            request=self.request,
+            action="create",
+            resource_type="stock_movement",
+            resource_id=movement.id,
+            message=f"{product.name}: {movement.movement_type}",
+        )

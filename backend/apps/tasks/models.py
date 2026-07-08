@@ -122,3 +122,23 @@ class TaskComment(models.Model):
 
     def __str__(self):
         return f"{self.task_id}: {self.author}"
+
+
+class TaskAttachment(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="attachments")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="task_attachments",
+    )
+    file = models.FileField(upload_to="task_attachments/%Y/%m/")
+    original_name = models.CharField(max_length=255)
+    size = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.task_id}: {self.original_name}"

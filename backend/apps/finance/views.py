@@ -1,6 +1,12 @@
 from rest_framework import viewsets
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import IsAuthenticated
 
-from common.permissions import IsManagerOrAdmin
+from common.audit import log_audit_event
+from common.rbac import Perm
+from common.rbac.checker import PermissionChecker
+from common.rbac.drf_permissions import require_any_permission, require_permission
+from common.rbac.scope import scope_queryset
 
 from .models import FinanceEntry
 from .serializers import FinanceEntrySerializer
@@ -9,17 +15,56 @@ from .serializers import FinanceEntrySerializer
 class FinanceEntryViewSet(viewsets.ModelViewSet):
     queryset = FinanceEntry.objects.select_related("created_by")
     serializer_class = FinanceEntrySerializer
-    permission_classes = [IsManagerOrAdmin]
+    permission_classes = [IsAuthenticated]
     ordering_fields = ["entry_date", "amount", "created_at"]
 
     def get_queryset(self):
-        user = self.request.user
-        qs = FinanceEntry.objects.select_related("created_by")
-        if getattr(user, "role", None) == "admin":
-            return qs
-        if getattr(user, "role", None) == "manager" and hasattr(user, "employee_profile"):
-            return qs.filter(created_by__employee_profile__department_id=user.employee_profile.department_id)
-        return qs.none()
+        return scope_queryset(
+            FinanceEntry.objects.select_related("created_by"),
+            self.request.user,
+            "finance",
+        )
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [IsAuthenticated(), require_permission(Perm.FINANCE_CREATE)()]
+        if self.action in ("update", "partial_update"):
+            return [IsAuthenticated(), require_permission(Perm.FINANCE_UPDATE)()]
+        if self.action == "destroy":
+            return [IsAuthenticated(), require_permission(Perm.FINANCE_DELETE)()]
+        if self.action in ("list", "retrieve"):
+            return [
+                IsAuthenticated(),
+                require_any_permission(Perm.FINANCE_VIEW_ALL, Perm.FINANCE_VIEW_DEPARTMENT)(),
+            ]
+        return super().get_permissions()
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        entry = serializer.save(created_by=self.request.user)
+        log_audit_event(
+            request=self.request,
+            action="create",
+            resource_type="finance",
+            resource_id=entry.id,
+            message=entry.title,
+        )
+
+    def perform_update(self, serializer):
+        entry = serializer.save()
+        log_audit_event(
+            request=self.request,
+            action="update",
+            resource_type="finance",
+            resource_id=entry.id,
+            message=entry.title,
+        )
+
+    def perform_destroy(self, instance):
+        log_audit_event(
+            request=self.request,
+            action="delete",
+            resource_type="finance",
+            resource_id=instance.id,
+            message=instance.title,
+        )
+        super().perform_destroy(instance)

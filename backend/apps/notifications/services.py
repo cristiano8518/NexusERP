@@ -1,8 +1,24 @@
 from django.contrib.auth import get_user_model
 
-from .models import Notification
+from .models import Notification, NotificationPreference
 
 User = get_user_model()
+
+
+def _should_notify(recipient, notification_type: str, channel: str = "in_app") -> bool:
+    prefs = NotificationPreference.objects.filter(user=recipient).first()
+    if not prefs:
+        return True
+    if notification_type in (prefs.muted_types or []):
+        return False
+    if channel == "email":
+        return prefs.email_enabled
+    return prefs.in_app_enabled
+
+
+def get_or_create_preferences(user):
+    prefs, _ = NotificationPreference.objects.get_or_create(user=user)
+    return prefs
 
 
 def create_notification(
@@ -17,6 +33,8 @@ def create_notification(
     metadata: dict | None = None,
 ) -> Notification | None:
     if not recipient:
+        return None
+    if not _should_notify(recipient, notification_type, channel="in_app"):
         return None
     return Notification.objects.create(
         recipient=recipient,

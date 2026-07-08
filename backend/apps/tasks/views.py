@@ -4,14 +4,25 @@ from django.utils import timezone
 from rest_framework import status as drf_status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from common.permissions import IsEmployeeOrAbove, IsManagerOrAdmin
 from apps.notifications.models import Notification
 from apps.notifications.services import create_notification
+from common.audit import log_audit_event
+from common.rbac import Perm
+from common.rbac.checker import PermissionChecker
+from common.rbac.drf_permissions import require_permission
+from common.rbac.scope import assignee_allowed, scope_queryset, task_in_scope
 
-from .models import Task, TaskActivity, TaskComment
-from .serializers import TaskCommentSerializer, TaskDetailSerializer, TaskSerializer
+from .models import Task, TaskActivity, TaskAttachment, TaskComment
+from .serializers import (
+    TaskAttachmentSerializer,
+    TaskCommentSerializer,
+    TaskDetailSerializer,
+    TaskSerializer,
+)
 
 logger = logging.getLogger("nexuserp")
 
@@ -24,28 +35,21 @@ WORKFLOW_RULES = {
 }
 
 
+def _forbidden(message="Недостаточно прав доступа."):
+    raise PermissionDenied(message)
+
+
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
-    permission_classes = [IsEmployeeOrAbove]
+    permission_classes = [IsAuthenticated]
     search_fields = ["title", "description"]
     ordering_fields = ["deadline", "created_at", "status", "priority"]
 
     def get_queryset(self):
-        user = self.request.user
-        qs = (
-            Task.objects.select_related("created_by", "assignee", "assignee__user")
-            .prefetch_related("comments", "activities")
-        )
-        if user.role == "admin":
-            return qs
-        if user.role == "manager":
-            department_id = self._manager_department_id(user)
-            if not department_id:
-                return qs.none()
-            return qs.filter(assignee__department_id=department_id)
-        if hasattr(user, "employee_profile"):
-            return qs.filter(assignee__user=user)
-        return qs.none()
+        qs = Task.objects.select_related(
+            "created_by", "assignee", "assignee__user", "assignee__department"
+        ).prefetch_related("comments", "activities")
+        return scope_queryset(qs, self.request.user, "tasks")
 
     def get_serializer_class(self):
         if self.action == "retrieve":
@@ -53,14 +57,32 @@ class TaskViewSet(viewsets.ModelViewSet):
         return TaskSerializer
 
     def get_permissions(self):
-        if self.action in ("create", "destroy"):
-            return [IsManagerOrAdmin()]
-        if self.action in ("update", "partial_update"):
-            return [IsEmployeeOrAbove()]
-        return super().get_permissions()
+        if self.action == "create":
+            return [IsAuthenticated(), require_permission(Perm.TASKS_CREATE)()]
+        if self.action == "destroy":
+            return [IsAuthenticated(), require_permission(Perm.TASKS_DELETE)()]
+        return [IsAuthenticated()]
+
+    def list(self, request, *args, **kwargs):
+        checker = PermissionChecker(request.user)
+        if not checker.has_any(
+            Perm.TASKS_VIEW_ALL, Perm.TASKS_VIEW_DEPARTMENT, Perm.TASKS_VIEW_OWN
+        ):
+            _forbidden()
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        task = self.get_object()
+        if not task_in_scope(request.user, task):
+            _forbidden()
+        return super().retrieve(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        self._validate_manager_assignee(serializer.validated_data.get("assignee"))
+        assignee = serializer.validated_data.get("assignee")
+        if assignee and not assignee_allowed(self.request.user, assignee):
+            raise ValidationError(
+                {"assignee": "Менеджер тек өз бөліміндегі қызметкерге тапсырма бере алады."}
+            )
         task = serializer.save(created_by=self.request.user, status=Task.Status.ASSIGNED)
         TaskActivity.objects.create(
             task=task,
@@ -108,50 +130,78 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         task = self.get_object()
+        if not task_in_scope(request.user, task):
+            _forbidden()
+
+        checker = PermissionChecker(request.user)
         old_status = task.status
         old_progress = task.progress
         old_snapshot = self._task_snapshot(task)
+
         if "status" in request.data:
             return Response(
                 {"detail": "Статусты өзгерту үшін /transition/ endpoint қолданыңыз."},
                 status=drf_status.HTTP_400_BAD_REQUEST,
             )
-        if request.user.role == "employee":
+
+        if checker.has(Perm.TASKS_UPDATE_OWN_PROGRESS) and not checker.has_any(
+            Perm.TASKS_UPDATE, Perm.TASKS_ASSIGN
+        ):
             allowed = {"progress"}
             data = {k: v for k, v in request.data.items() if k in allowed}
-            serializer = self.get_serializer(
-                task, data=data, partial=True
-            )
+            serializer = self.get_serializer(task, data=data, partial=True)
             serializer.is_valid(raise_exception=True)
             updated_task = serializer.save()
             self._record_update_activity(updated_task, old_status, old_progress, old_snapshot)
             return Response(serializer.data)
-        if request.user.role == "manager" and "assignee" in request.data:
+
+        if not checker.has_any(Perm.TASKS_UPDATE, Perm.TASKS_ASSIGN):
+            _forbidden()
+
+        if "assignee" in request.data:
             serializer = self.get_serializer(task, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             assignee = serializer.validated_data.get("assignee")
-            self._validate_manager_assignee(assignee)
+            if assignee and not assignee_allowed(request.user, assignee):
+                raise ValidationError(
+                    {"assignee": "Менеджер тек өз бөліміндегі қызметкерге тапсырма бере алады."}
+                )
+
         response = super().partial_update(request, *args, **kwargs)
         task.refresh_from_db()
         self._record_update_activity(task, old_status, old_progress, old_snapshot)
         return response
 
     def update(self, request, *args, **kwargs):
-        if request.user.role == "employee":
+        task = self.get_object()
+        if not task_in_scope(request.user, task):
+            _forbidden()
+
+        checker = PermissionChecker(request.user)
+        if checker.has(Perm.TASKS_UPDATE_OWN_PROGRESS) and not checker.has_any(
+            Perm.TASKS_UPDATE, Perm.TASKS_ASSIGN
+        ):
             return Response(
-                {"detail": "Қызметкер тек прогресті және жұмыс процесі әрекеттерін өзгерте алады."},
+                {"detail": "Қызметкер тек прогресті өзгерте алады."},
                 status=drf_status.HTTP_403_FORBIDDEN,
             )
+        if not checker.has_any(Perm.TASKS_UPDATE, Perm.TASKS_ASSIGN):
+            _forbidden()
+
         if "status" in request.data:
             return Response(
                 {"detail": "Статусты өзгерту үшін /transition/ endpoint қолданыңыз."},
                 status=drf_status.HTTP_400_BAD_REQUEST,
             )
-        if request.user.role == "manager":
-            serializer = self.get_serializer(self.get_object(), data=request.data)
-            serializer.is_valid(raise_exception=True)
-            self._validate_manager_assignee(serializer.validated_data.get("assignee"))
-        task = self.get_object()
+
+        serializer = self.get_serializer(task, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        assignee = serializer.validated_data.get("assignee")
+        if assignee and not assignee_allowed(request.user, assignee):
+            raise ValidationError(
+                {"assignee": "Менеджер тек өз бөліміндегі қызметкерге тапсырма бере алады."}
+            )
+
         old_status = task.status
         old_progress = task.progress
         old_snapshot = self._task_snapshot(task)
@@ -161,7 +211,11 @@ class TaskViewSet(viewsets.ModelViewSet):
         return response
 
     def destroy(self, request, *args, **kwargs):
+        if not PermissionChecker(request.user).has(Perm.TASKS_DELETE):
+            _forbidden()
         task = self.get_object()
+        if not task_in_scope(request.user, task):
+            _forbidden()
         title = task.title
         self.perform_destroy(task)
         return Response(
@@ -172,6 +226,9 @@ class TaskViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="transition")
     def transition(self, request, pk=None):
         task = self.get_object()
+        if not task_in_scope(request.user, task):
+            _forbidden()
+
         target = request.data.get("status")
         note = (request.data.get("note") or "").strip()
 
@@ -194,10 +251,7 @@ class TaskViewSet(viewsets.ModelViewSet):
             )
 
         if not self._can_change_status(request.user, task, target):
-            return Response(
-                {"detail": "Бұл әрекетке рұқсатыңыз жоқ."},
-                status=drf_status.HTTP_403_FORBIDDEN,
-            )
+            _forbidden()
 
         previous = task.status
         now = timezone.now()
@@ -220,16 +274,16 @@ class TaskViewSet(viewsets.ModelViewSet):
             task.progress = min(task.progress, 90)
         task.save()
 
-        action = TaskActivity.Action.STATUS_CHANGED
+        action_type = TaskActivity.Action.STATUS_CHANGED
         if target == Task.Status.APPROVED:
-            action = TaskActivity.Action.APPROVED
+            action_type = TaskActivity.Action.APPROVED
         elif target == Task.Status.REJECTED:
-            action = TaskActivity.Action.REJECTED
+            action_type = TaskActivity.Action.REJECTED
 
         TaskActivity.objects.create(
             task=task,
             actor=request.user,
-            action=action,
+            action=action_type,
             from_status=previous,
             to_status=target,
             message=note,
@@ -243,6 +297,11 @@ class TaskViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="comments")
     def add_comment(self, request, pk=None):
         task = self.get_object()
+        if not task_in_scope(request.user, task):
+            _forbidden()
+        if not PermissionChecker(request.user).has(Perm.TASKS_COMMENT):
+            _forbidden()
+
         serializer = TaskCommentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         comment = serializer.save(task=task, author=request.user)
@@ -272,38 +331,88 @@ class TaskViewSet(viewsets.ModelViewSet):
             status=drf_status.HTTP_201_CREATED,
         )
 
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="attachments",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def upload_attachment(self, request, pk=None):
+        task = self.get_object()
+        if not task_in_scope(request.user, task):
+            _forbidden()
+        if not PermissionChecker(request.user).has(Perm.TASKS_ATTACH):
+            _forbidden()
+
+        upload = request.FILES.get("file")
+        if not upload:
+            return Response({"detail": "Файл жоқ."}, status=drf_status.HTTP_400_BAD_REQUEST)
+        if upload.size > 10 * 1024 * 1024:
+            return Response({"detail": "Файл 10 МБ-тан аспауы керек."}, status=drf_status.HTTP_400_BAD_REQUEST)
+
+        attachment = TaskAttachment.objects.create(
+            task=task,
+            uploaded_by=request.user,
+            file=upload,
+            original_name=upload.name,
+            size=upload.size,
+        )
+        TaskActivity.objects.create(
+            task=task,
+            actor=request.user,
+            action=TaskActivity.Action.UPDATED,
+            message=f"Файл жүктелді: {upload.name}",
+        )
+        log_audit_event(
+            request=request,
+            action="upload",
+            resource_type="task_attachment",
+            resource_id=attachment.id,
+            message=f"{task.title}: {upload.name}",
+        )
+        serializer = TaskAttachmentSerializer(attachment, context=self.get_serializer_context())
+        return Response({"success": True, "attachment": serializer.data}, status=drf_status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["delete"], url_path=r"attachments/(?P<attachment_id>\d+)")
+    def delete_attachment(self, request, pk=None, attachment_id=None):
+        task = self.get_object()
+        if not task_in_scope(request.user, task):
+            _forbidden()
+        checker = PermissionChecker(request.user)
+        attachment = TaskAttachment.objects.filter(task=task, id=attachment_id).first()
+        if not attachment:
+            return Response({"detail": "Файл табылмады."}, status=drf_status.HTTP_404_NOT_FOUND)
+        if not checker.has_any(Perm.TASKS_DELETE, Perm.SYSTEM_MANAGE) and attachment.uploaded_by_id != request.user.id:
+            _forbidden()
+        name = attachment.original_name
+        attachment.file.delete(save=False)
+        attachment.delete()
+        log_audit_event(
+            request=request,
+            action="delete",
+            resource_type="task_attachment",
+            resource_id=attachment_id,
+            message=f"{task.title}: {name}",
+        )
+        return Response({"success": True, "detail": "Файл жойылды."})
+
     def _can_change_status(self, user, task, target):
-        if user.role in ("admin", "manager"):
-            if user.role == "manager" and task.assignee:
+        checker = PermissionChecker(user)
+        if checker.has(Perm.TASKS_APPROVE):
+            if checker.has(Perm.TASKS_VIEW_ALL):
+                return target in (Task.Status.APPROVED, Task.Status.REJECTED)
+            if checker.has(Perm.TASKS_VIEW_DEPARTMENT) and task.assignee:
                 return (
-                    task.assignee.department_id == self._manager_department_id(user)
+                    task.assignee.department_id == checker.department_id()
                     and target in (Task.Status.APPROVED, Task.Status.REJECTED)
                 )
-            return target in (Task.Status.APPROVED, Task.Status.REJECTED)
-        if user.role == "employee":
+        if checker.has(Perm.TASKS_UPDATE_OWN_PROGRESS):
             return (
                 task.assignee
                 and task.assignee.user_id == user.id
                 and target in (Task.Status.IN_PROGRESS, Task.Status.DONE)
             )
         return False
-
-    def _manager_department_id(self, user):
-        if hasattr(user, "employee_profile"):
-            return user.employee_profile.department_id
-        return None
-
-    def _validate_manager_assignee(self, assignee):
-        user = self.request.user
-        if user.role != "manager" or assignee is None:
-            return
-        department_id = self._manager_department_id(user)
-        if not department_id:
-            raise PermissionDenied("Менеджер профиліне бөлім байланыспаған.")
-        if assignee.department_id != department_id:
-            raise ValidationError(
-                {"assignee": "Менеджер тек өз бөліміндегі қызметкерге тапсырма бере алады."}
-            )
 
     def _task_snapshot(self, task):
         return {

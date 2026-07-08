@@ -8,7 +8,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState, LoadingState } from "@/components/ui/StateBlock";
-import { useAuth } from "@/contexts/AuthContext";
+import { usePermission } from "@/hooks/usePermission";
+import { Perm } from "@/lib/permissions";
 import { useToast } from "@/contexts/ToastContext";
 
 const DEFAULT_FORM = {
@@ -61,8 +62,8 @@ function FinanceMetric({
 }
 
 export default function FinancePage() {
-  const { user } = useAuth();
   const toast = useToast();
+  const { canAny } = usePermission();
   const [entries, setEntries] = useState<FinanceEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -74,7 +75,7 @@ export default function FinancePage() {
   const [loadError, setLoadError] = useState("");
   const [form, setForm] = useState(DEFAULT_FORM);
 
-  const canEdit = user?.role === "admin" || user?.role === "manager";
+  const canEdit = canAny(Perm.FINANCE_CREATE, Perm.FINANCE_UPDATE, Perm.FINANCE_DELETE);
 
   function load() {
     setLoading(true);

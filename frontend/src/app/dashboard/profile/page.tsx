@@ -89,6 +89,7 @@ export default function ProfilePage() {
     email: "",
     phone: "",
   });
+  const [prefs, setPrefs] = useState({ email_enabled: true, in_app_enabled: true });
 
   useEffect(() => {
     api
@@ -104,6 +105,12 @@ export default function ProfilePage() {
       })
       .catch(() => setLoadError("Профиль деректері жүктелмеді. Қайта кіріп көріңіз."))
       .finally(() => setLoading(false));
+    api
+      .get<{ preferences: { email_enabled: boolean; in_app_enabled: boolean } }>(
+        "/notifications/preferences/"
+      )
+      .then((res) => setPrefs(res.data.preferences))
+      .catch(() => undefined);
   }, []);
 
   const currentUser = profile?.user || user;
@@ -363,6 +370,37 @@ export default function ProfilePage() {
                 Тапсырма статистикасы HR карточкамен бірге шығады.
               </p>
             )}
+          </section>
+
+          <section className="premium-card p-6">
+            <h2 className="mb-4 text-xl font-bold">Хабарлама баптаулары</h2>
+            <div className="space-y-3 text-sm">
+              <label className="flex items-center justify-between rounded-2xl bg-white/5 p-3">
+                <span>Email хабарламалар</span>
+                <input
+                  type="checkbox"
+                  checked={prefs.email_enabled}
+                  onChange={(e) => setPrefs({ ...prefs, email_enabled: e.target.checked })}
+                />
+              </label>
+              <label className="flex items-center justify-between rounded-2xl bg-white/5 p-3">
+                <span>Жүйе ішіндегі хабарламалар</span>
+                <input
+                  type="checkbox"
+                  checked={prefs.in_app_enabled}
+                  onChange={(e) => setPrefs({ ...prefs, in_app_enabled: e.target.checked })}
+                />
+              </label>
+              <button
+                onClick={async () => {
+                  await api.patch("/notifications/preferences/", prefs);
+                  toast.success("Баптаулар сақталды");
+                }}
+                className="premium-button px-4 py-2 text-sm"
+              >
+                Баптауларды сақтау
+              </button>
+            </div>
           </section>
 
           <section className="premium-card p-6">
