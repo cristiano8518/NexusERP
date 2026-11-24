@@ -1,276 +1,196 @@
 # NexusERP
 
-Корпоративтік ERP жүйесі — қызметкерлер, тапсырмалар, қойма, қаржы және аналитиканы бір орталықтан басқару.
+NexusERP is a full-stack corporate ERP platform for running a company's internal operations from one place: people and org structure, task workflows, warehouse stock, finance, analytics and reporting. It pairs a Django REST API (JWT auth, role-based access control, Celery background jobs) with a Next.js + TypeScript dashboard, and ships with Docker Compose stacks for development and a production-like deployment behind Nginx. It also includes a local AI assistant powered by Ollama that answers questions using ERP data the current user is allowed to see.
 
-## Технологиялар
+> Kazakh-language documentation: [docs/README.kk.md](docs/README.kk.md)
 
-| Қабат | Стек |
-|-------|------|
-| Backend | Django 5, Django REST Framework, JWT, Celery |
-| Frontend | Next.js 15, TypeScript, Tailwind CSS |
-| DB | PostgreSQL 16 |
-| Cache / Queue | Redis 7 |
-| Infra | Docker Compose, GitHub Actions |
+## Key features
 
-## Жоба құрылымы
+- **Authentication & security** – JWT access/refresh tokens with blacklist, registration, security and audit logs, DRF rate limiting for anonymous users, logged-in users, login and registration.
+- **Role-based access control** – `admin`, `manager` and `employee` roles with a permission registry and data scopes (all / department / own); managers see only their department.
+- **HR** – departments, positions, org structure view, employee profiles, task summaries and salary visibility rules.
+- **Tasks** – task workflow with status timeline, comments, attachments and activity history.
+- **Warehouse** – products, stock levels, incoming/outgoing movements, product history, automatic finance entries.
+- **Finance** – income/expense records, category breakdown and cash flow.
+- **Analytics & reports** – dashboard aggregates (Redis-cached), CSV export, asynchronous report generation, printable views.
+- **Notifications** – notification center with unread counters and Celery-based email delivery.
+- **Integrations** – external employee API sync with timeout/error handling and HMAC-signed incoming webhooks.
+- **AI assistant** – role-aware chat endpoint that builds ERP context and queries a local Ollama model.
+- **API docs** – OpenAPI schema with Swagger UI and ReDoc; Jazzmin-themed Django admin.
+- **CI/CD** – GitHub Actions for lint (ruff), tests with a coverage gate, frontend build, and an SSH deploy workflow.
+
+## Tech stack
+
+| Layer | Technologies |
+|-------|--------------|
+| Backend | Python 3.12, Django 5.1, Django REST Framework, SimpleJWT, drf-spectacular, django-environ |
+| Background jobs | Celery, django-celery-beat, django-celery-results |
+| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS, Axios, lucide-react |
+| Database / cache | PostgreSQL 16, Redis 7 |
+| Infrastructure | Docker, Docker Compose, Nginx, Gunicorn, WhiteNoise |
+| Quality | pytest, pytest-django, pytest-cov, ruff, GitHub Actions |
+| AI | Ollama (default model `llama3.1:8b`) |
+
+## Project structure
 
 ```
 NexusERP/
-├── backend/          # Django API
-│   ├── config/       # Settings, URLs, Celery
-│   ├── apps/         # Модульдер (accounts, employees, …)
-│   └── common/       # Ортақ утилиталар
-├── frontend/         # Next.js UI
-├── docs/             # Technical spec, evaluation mapping
-├── nginx/            # Production reverse proxy
-├── docker-compose.yml
-├── docker-compose.prod.yml
-└── .github/workflows/
+├── backend/                  # Django API
+│   ├── apps/                 # Domain apps
+│   │   ├── accounts/         #   users, auth, roles, security/audit logs, demo seeders
+│   │   ├── employees/        #   departments, positions, HR profiles
+│   │   ├── tasks/            #   task workflow, comments, attachments
+│   │   ├── warehouse/        #   products and stock movements
+│   │   ├── finance/          #   income / expense records
+│   │   ├── analytics/        #   dashboard aggregates
+│   │   ├── reports/          #   CSV / async report export
+│   │   ├── notifications/    #   notification center, email jobs
+│   │   ├── integrations/     #   external API sync, webhooks
+│   │   └── ai/               #   Ollama assistant
+│   ├── common/               # Shared code: RBAC, permissions, middleware, throttling, health check
+│   ├── config/               # Settings (base/dev/prod), URLs, Celery, Jazzmin
+│   └── requirements/         # base.txt, dev.txt
+├── frontend/                 # Next.js app (src/app, components, contexts, lib)
+├── nginx/                    # Reverse proxy config for the production stack
+├── scripts/                  # PowerShell helpers (deploy, backup, seed, healthcheck, verify)
+├── docs/                     # Technical spec, troubleshooting, course/defense material
+├── docker-compose.yml        # Development stack
+├── docker-compose.prod.yml   # Production-like stack
+└── .github/workflows/        # CI and CD pipelines
 ```
 
-## Жылдам бастау
+## Getting started
 
-### 1. Environment
+### Prerequisites
 
-```bash
-cd NexusERP
-copy .env.example .env
-```
+- Docker and Docker Compose (recommended), **or**
+- Python 3.12, Node.js 20, PostgreSQL 16 and Redis 7 for a local setup
+- Optional: [Ollama](https://ollama.com) for the AI assistant
 
-`.env` ішінде `SECRET_KEY` өзгертіңіз.
-
-> Барлық `docker compose ...` командаларын міндетті түрде `C:\Users\user\NexusERP`
-> папкасынан орындаңыз. Әйтпесе Docker `no configuration file provided` қатесін береді.
-
-### 2. Docker (ұсынылады)
+### Run with Docker (development)
 
 ```bash
+cp .env.example .env          # Windows: copy .env.example .env
+# edit .env and set SECRET_KEY
 docker compose up --build
 ```
 
-| Сервис | URL |
-|--------|-----|
+The stack starts `postgres`, `redis`, `backend` (runs migrations and collectstatic, then Gunicorn with reload), `celery_worker`, `celery_beat` and `frontend` (Next.js dev server).
+
+| Service | URL |
+|---------|-----|
 | Frontend | http://localhost:3000 |
-| API | http://localhost:8000/api/v1/ |
-| Swagger | http://localhost:8000/api/docs/ |
-| Admin (Jazzmin UI) | http://localhost:8000/admin/ |
+| REST API | http://localhost:8000/api/v1/ |
+| Swagger UI | http://localhost:8000/api/docs/ |
+| ReDoc | http://localhost:8000/api/redoc/ |
+| Django admin | http://localhost:8000/admin/ |
+| Health check | http://localhost:8000/api/v1/health/ |
 
-### 2.1 Healthcheck
-
-```powershell
-.\scripts\healthcheck.ps1
-```
-
-### 3. Суперпайдаланушы (бірінші рет)
+Create an admin account and (optionally) demo data:
 
 ```bash
 docker compose exec backend python manage.py createsuperuser
+
+# small demo dataset
+docker compose exec backend python manage.py seed_demo
+
+# larger, realistic dataset for dashboards and reports
+docker compose exec backend python manage.py seed_scale_demo --reset-scale \
+  --employees 48 --tasks 240 --finance 220 --movements 160
 ```
 
-### 4. Масштабты demo data
+The demo seeders create sample accounts (for example `admin`, `manager`, `employee`); see `backend/apps/accounts/management/commands/` for details. They are for local demos only.
 
-Dashboard, Tasks, Finance, Warehouse, Analytics & Reports бөлімдері бос көрінбеуі үшін
-realistic үлкен dataset құюға болады:
+### Run locally without Docker
 
-```powershell
-.\scripts\seed-scale-demo.ps1
+Start PostgreSQL and Redis (for example `docker compose up -d postgres redis`), then:
+
+```bash
+# Backend
+cd backend
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements/dev.txt
+export DJANGO_SETTINGS_MODULE=config.settings.dev
+# The settings read ../.env; point the hosts at localhost, e.g.
+# DATABASE_URL=postgres://nexuserp:nexuserp_secret@localhost:5432/nexuserp
+# REDIS_URL=redis://localhost:6379/0
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8000
+
+# Celery (separate terminals, from backend/)
+celery -A config worker -l info
+celery -A config beat -l info
+
+# Frontend
+cd frontend
+npm install
+npm run dev                      # http://localhost:3000
 ```
 
-Немесе қолмен:
+### Production-like deployment
 
-```powershell
-docker compose exec backend python manage.py seed_scale_demo --reset-scale --employees 48 --tasks 240 --finance 220 --movements 160
+The production stack serves everything on port 80 through Nginx (`/` → Next.js, `/api/` and `/admin/` → Django, `/static/` and `/media/` → Nginx).
+
+```bash
+cp .env.production.example .env.production
+# set SECRET_KEY, POSTGRES_PASSWORD, DATABASE_URL, ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS, SMTP settings
+docker compose -f docker-compose.prod.yml --env-file .env.production up --build -d
 ```
 
-Бұл команда мыналарды қосады:
+On Windows, `scripts/prod-deploy.ps1` wraps these steps, and `scripts/backup-db.ps1` / `scripts/backup-prod-db.ps1` dump the database into `backups/`.
 
-- 6 бөлім және бірнеше лауазым;
-- 48 қызметкер және бірнеше manager;
-- 240 workflow тапсырма;
-- 220 қаржы жазбасы;
-- 12 өнім және 160 қойма қозғалысы;
-- task activity, comments және notifications.
+### AI assistant (optional)
 
-Demo login:
-
-```text
-admin / admin123
-manager / manager123
-scale_manager_01 / manager123
-scale_employee_001 / employee123
-```
-
-## Модульдер (фундамент)
-
-- **accounts** — Auth, JWT, рөлдер, қауіпсіздік логтары
-- **employees** — HR Pro: бөлімдер, лауазымдар, employee profile, task summary, salary visibility
-- **tasks** — Тапсырмалар, workflow, status timeline, comments, activity history
-- **warehouse** — Тауар, қалдық, кіріс/шығыс, product history, finance integration
-- **finance** — Кіріс/шығын, category breakdown, cashflow, warehouse auto entries
-- **analytics** — Dashboard агрегациялары, reports export center, printable PDF view
-- **notifications** — Notification Center, unread count, Celery email/хабарламалар
-- **reports** — Backend CSV export API for Analytics & Reports
-- **integrations** — External API sync, webhook қабылдау, timeout/error handling
-
-## Бағалау критерийлері
-
-Курстық/апталық критерийлер mapping:
-
-- `docs/TECHNICAL_SPEC.md` — техникалық тапсырма және архитектура.
-- `docs/EVALUATION_CRITERIA.md` — 1–7 апта критерийлерінің орындалуын дәлелдеу.
-- `docs/IMPROVEMENT_PLAN.md` — жетіспейтін жерлер, түзетілген қателер және next roadmap.
-- `docs/WEEK7_PRESENTATION.md` — финал презентация құрылымы.
-- `docs/WEEK7_DEMO_SCRIPT.md` — live demo жүргізу сценариі.
-- `docs/WEEK7_DEFENSE_QA.md` — қорғауға дайын Q&A.
-
-### Week 5–7 жаңартуы
-
-- **Week 5 (Automated Testing):** `tasks`, `finance`, `warehouse`, `integrations` модульдеріне API тесттері қосылды.
-- **Coverage gate:** CI ішінде `pytest-cov` арқылы coverage есептеледі, `--cov-fail-under=40` енгізілді.
-- **Week 6 (Security/CD):** DRF rate limiting (`THROTTLE_ANON_RATE`, `THROTTLE_USER_RATE`, `THROTTLE_AUTH_LOGIN_RATE`, `THROTTLE_AUTH_REGISTER_RATE`) қосылды.
-- **CD pipeline:** `.github/workflows/cd.yml` арқылы `main` branch push және manual dispatch кезінде deploy сценарийі іске қосылады (SSH secrets қажет).
-
-Негізгі verification endpoint-тер:
-
-```text
-GET  /api/v1/analytics/cache-benchmark/
-POST /api/v1/reports/async/
-POST /api/v1/notifications/bulk-email/
-POST /api/v1/ai/chat/
-GET  /api/v1/integrations/external-employees/
-POST /api/v1/integrations/external-employees/
-POST /api/v1/integrations/webhooks/external/
-```
-
-Webhook қолтаңбасы (security):
-
-```text
-X-Nexus-Timestamp: <unix_timestamp>
-X-Nexus-Signature: sha256=<hmac_sha256(timestamp + "." + raw_body, secret)>
-```
-
-## Ollama AI көмекші
-
-NexusERP ішінде локалды AI көмекші бар: `Басты бет → AI көмекші`.
-Frontend тікелей Ollama-ға қосылмайды; сұрақ алдымен Django endpoint-ке барады, backend рөлге сай ERP context жинап, Ollama-ға жібереді.
-
-Компьютерде Ollama іске қосыңыз:
-
-```powershell
+```bash
 ollama serve
 ollama pull llama3.1:8b
 ```
 
-`.env` ішінде:
+The backend calls Ollama at `OLLAMA_BASE_URL` (default `http://host.docker.internal:11434`; use `http://localhost:11434` when the backend runs outside Docker).
 
-```env
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-OLLAMA_MODEL=llama3.1:8b
-OLLAMA_TIMEOUT_SECONDS=60
+## Testing and linting
+
+```bash
+cd backend
+ruff check .
+pytest --cov=apps --cov-report=term-missing
+
+cd ../frontend
+npm run build
 ```
 
-Егер backend Docker ішінде емес, тікелей Windows-та іске қосылса, `OLLAMA_BASE_URL=http://localhost:11434` деп ауыстыруға болады.
+CI (`.github/workflows/ci.yml`) runs ruff, migrations and pytest against PostgreSQL/Redis services with a coverage threshold, and builds the frontend.
 
-## Рөлдер
+## Environment variables
 
-| Рөл | Код |
-|-----|-----|
-| Админ | `admin` |
-| Менеджер | `manager` |
-| Қызметкер | `employee` |
+See [`.env.example`](.env.example) (development) and [`.env.production.example`](.env.production.example) (production) for the full list with placeholder values.
 
-Логика:
+| Group | Variables |
+|-------|-----------|
+| General | `DEBUG`, `SECRET_KEY`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `USE_HTTPS` |
+| Database | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`, `DATABASE_URL` |
+| Redis / Celery | `REDIS_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` |
+| Auth / rate limits | `JWT_ACCESS_TOKEN_LIFETIME_MINUTES`, `JWT_REFRESH_TOKEN_LIFETIME_DAYS`, `THROTTLE_ANON_RATE`, `THROTTLE_USER_RATE`, `THROTTLE_AUTH_LOGIN_RATE`, `THROTTLE_AUTH_REGISTER_RATE` |
+| Email | `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL` |
+| Frontend | `NEXT_PUBLIC_API_URL` |
+| Integrations | `ODOO_EMPLOYEES_URL`, `EXTERNAL_API_TIMEOUT_SECONDS`, `EXTERNAL_WEBHOOK_SECRET` |
+| AI assistant | `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT_SECONDS` |
+| CD (GitHub secrets) | `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_PATH` |
 
-- **Админ** барлық бөлімдерді, қызметкерлерді, тапсырмаларды, қаржы жазбаларын және есептерді көреді.
-- **Менеджер** тек өзінің HR профиліндегі бөлімге байланысты деректерді қадағалайды: сол бөлімнің қызметкерлері, тапсырмалары, бөлім бойынша analytics/report көрсеткіштері.
-- **Қызметкер** тек өзіне берілген тапсырмаларды көреді және прогресті жаңарта алады.
+## Documentation
 
-## Production-like Deploy
+- [Technical specification](docs/TECHNICAL_SPEC.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Improvement plan](docs/IMPROVEMENT_PLAN.md)
+- [Evaluation criteria mapping](docs/EVALUATION_CRITERIA.md)
+- Final presentation material: [presentation](docs/WEEK7_PRESENTATION.md), [demo script](docs/WEEK7_DEMO_SCRIPT.md), [defense Q&A](docs/WEEK7_DEFENSE_QA.md)
+- [Kazakh README](docs/README.kk.md)
 
-Production stack Nginx арқылы бір портта жұмыс істейді:
+## License
 
-| Route | Service |
-|-------|---------|
-| `/` | Next.js frontend |
-| `/api/` | Django API |
-| `/admin/` | Django Admin |
-| `/static/`, `/media/` | Nginx static/media |
+Built for educational and portfolio purposes. No license file is included; all rights reserved by the author.
 
-### 1. Production env
+---
 
-```powershell
-copy .env.production.example .env.production
-```
-
-`.env.production` ішінде міндетті түрде өзгертіңіз:
-
-- `SECRET_KEY`
-- `POSTGRES_PASSWORD`
-- `DATABASE_URL`
-- `ALLOWED_HOSTS`
-- `CSRF_TRUSTED_ORIGINS`
-- email SMTP values
-
-### 2. Start production-like stack
-
-```powershell
-.\scripts\prod-deploy.ps1
-```
-
-Немесе қолмен:
-
-```powershell
-docker compose -f docker-compose.prod.yml --env-file .env.production up --build -d
-```
-
-URL:
-
-```text
-http://localhost
-```
-
-### 3. Database backup
-
-Development stack үшін:
-
-```powershell
-.\scripts\backup-db.ps1
-```
-
-Production stack үшін:
-
-```powershell
-.\scripts\backup-prod-db.ps1
-```
-
-### 4. Logs
-
-```powershell
-docker compose -f docker-compose.prod.yml --env-file .env.production logs backend --tail 100
-docker compose -f docker-compose.prod.yml --env-file .env.production logs nginx --tail 100
-```
-
-## Жоба статусы
-
-NexusERP қазіргі күйі:
-
-- ✅ **Week 1–4** толық орындалған (архитектура, DB/кэш, background jobs, integrations)
-- ✅ **Week 5** орындалған (backend API тесттер + CI coverage gate)
-- ✅ **Week 6** орындалған (production-like deploy, rate limit, CD workflow)
-- ✅ **Week 7** орындалған (presentation, demo script, defense Q&A)
-
-Қазіргі функционал:
-
-- Толық ERP модульдері: қызметкерлер, тапсырмалар, қойма, қаржы, аналитика/есеп, хабарламалар, интеграциялар, AI көмекші.
-- Рөлдік модель толық іске асқан: admin/manager/employee, manager — department scope.
-- Production-ready инфрақұрылым: `docker-compose.prod.yml`, Nginx reverse proxy, backup script, CI/CD workflow.
-
-Келесі даму идеялары (міндетті емес, post-course roadmap):
-
-- Telegram интеграциясы
-- Мониторинг және алертинг (metrics + logs)
-- Қосымша e2e тесттер
-
-## Лицензия
-
-Жоба оқу/портфолио мақсатында.
+Author: cristiano8518
