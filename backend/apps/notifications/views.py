@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 
 from common.rbac import Perm
 from common.rbac.checker import PermissionChecker
+
 from .models import Notification
 from .serializers import NotificationPreferenceSerializer, NotificationSerializer
 from .services import get_or_create_preferences

@@ -1,8 +1,9 @@
-import pytest
 import hashlib
 import hmac
 import json
 import time
+
+import pytest
 from django.core.cache import cache
 from rest_framework import status
 
@@ -52,7 +53,7 @@ def test_webhook_signature_and_cache(api_client, settings):
     ts = str(int(time.time()))
     sign = "sha256=" + hmac.new(
         settings.EXTERNAL_WEBHOOK_SECRET.encode("utf-8"),
-        f"{ts}.".encode("utf-8") + raw,
+        f"{ts}.".encode() + raw,
         hashlib.sha256,
     ).hexdigest()
     ok = api_client.post(

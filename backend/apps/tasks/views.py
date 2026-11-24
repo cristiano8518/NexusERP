@@ -1,7 +1,8 @@
 import logging
 
 from django.utils import timezone
-from rest_framework import status as drf_status, viewsets
+from rest_framework import status as drf_status
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -16,7 +17,7 @@ from common.rbac.checker import PermissionChecker
 from common.rbac.drf_permissions import require_permission
 from common.rbac.scope import assignee_allowed, scope_queryset, task_in_scope
 
-from .models import Task, TaskActivity, TaskAttachment, TaskComment
+from .models import Task, TaskActivity, TaskAttachment
 from .serializers import (
     TaskAttachmentSerializer,
     TaskCommentSerializer,

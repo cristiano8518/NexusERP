@@ -1,6 +1,6 @@
 from django.db import transaction
 from rest_framework import viewsets
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 
 from apps.finance.models import FinanceEntry
@@ -8,7 +8,6 @@ from apps.notifications.models import Notification
 from apps.notifications.services import notify_role
 from common.audit import log_audit_event
 from common.rbac import Perm
-from common.rbac.checker import PermissionChecker
 from common.rbac.drf_permissions import require_any_permission, require_permission
 from common.rbac.scope import scope_queryset
 

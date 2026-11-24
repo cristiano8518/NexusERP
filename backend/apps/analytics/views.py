@@ -6,7 +6,12 @@ from rest_framework.views import APIView
 from common.rbac import Perm
 from common.rbac.checker import PermissionChecker
 
-from .services import benchmark_dashboard_cache, get_dashboard_stats, get_monthly_finance, get_performance_stats
+from .services import (
+    benchmark_dashboard_cache,
+    get_dashboard_stats,
+    get_monthly_finance,
+    get_performance_stats,
+)
 
 
 def _department_scope(user):

@@ -1,16 +1,17 @@
-import hmac
 import hashlib
+import hmac
 import time
 
 from django.conf import settings
 from django.core.cache import cache
 from django.urls import path
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework import status
 from rest_framework.views import APIView
 
 from common.permissions import IsAdminRole, IsManagerOrAdmin
+
 from .services import ExternalAPIError, fetch_external_employees
 from .tasks import sync_external_employees_task
 
@@ -87,7 +88,7 @@ class ExternalWebhookView(APIView):
             body = request.body or b""
             digest = hmac.new(
                 secret.encode("utf-8"),
-                f"{timestamp}.".encode("utf-8") + body,
+                f"{timestamp}.".encode() + body,
                 hashlib.sha256,
             ).hexdigest()
             expected = f"sha256={digest}"

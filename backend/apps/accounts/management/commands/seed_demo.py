@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.core.management.base import BaseCommand
 
 from apps.accounts.models import Role, User
@@ -6,7 +8,6 @@ from apps.finance.models import FinanceEntry
 from apps.notifications.models import Notification
 from apps.tasks.models import Task, TaskActivity, TaskComment
 from apps.warehouse.models import Category, Product, StockMovement
-from datetime import date
 
 
 class Command(BaseCommand):

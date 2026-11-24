@@ -5,16 +5,20 @@ from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from common.permissions import IsAdminRole
+from apps.employees.serializers import EmployeeDetailSerializer
 from common.rbac import Perm
 from common.rbac.checker import PermissionChecker, get_user_permissions
-from apps.employees.serializers import EmployeeDetailSerializer
-
-from .models import SecurityLog
-from .audit_models import AuditLog
-from .serializers import AuditLogSerializer, RegisterSerializer, SecurityLogSerializer, UserSerializer
-from .services import log_security_event
 from common.throttling import LoginRateThrottle, RegisterRateThrottle
+
+from .audit_models import AuditLog
+from .models import SecurityLog
+from .serializers import (
+    AuditLogSerializer,
+    RegisterSerializer,
+    SecurityLogSerializer,
+    UserSerializer,
+)
+from .services import log_security_event
 
 
 class RegisterView(generics.CreateAPIView):
