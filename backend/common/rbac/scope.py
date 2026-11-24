@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from django.db.models import Q, QuerySet
+from django.db.models import QuerySet
 
 from .checker import PermissionChecker
 from .codes import Perm
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from apps.accounts.models import User
 
 
-class DataScope(str, Enum):
+class DataScope(str, Enum):  # noqa: UP042 - keep str mixin semantics
     ALL = "all"
     DEPARTMENT = "department"
     OWN = "own"

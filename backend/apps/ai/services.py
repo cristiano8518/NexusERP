@@ -1,5 +1,4 @@
 import json
-import socket
 from decimal import Decimal
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -8,7 +7,6 @@ from django.conf import settings
 from django.db.models import DecimalField, F, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
-
 
 SYSTEM_PROMPT = """
 Сен NexusERP жүйесіндегі қазақ тіліндегі AI көмекшісісің.
@@ -44,7 +42,7 @@ def ask_ollama(message: str, user) -> dict:
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="ignore")[:300]
         return _error(f"Ollama HTTP қатесі ({exc.code}). {detail}".strip())
-    except (URLError, TimeoutError, socket.timeout, OSError) as exc:
+    except (URLError, TimeoutError, OSError) as exc:
         return _error(
             "Ollama іске қосылмаған немесе backend оған қосыла алмады. "
             f"Тексеру: {settings.OLLAMA_BASE_URL}. Себебі: {exc}"

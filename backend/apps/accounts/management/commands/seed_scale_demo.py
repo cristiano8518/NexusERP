@@ -13,7 +13,6 @@ from apps.notifications.models import Notification
 from apps.tasks.models import Task, TaskActivity, TaskComment
 from apps.warehouse.models import Category, Product, StockMovement
 
-
 DEPARTMENTS = {
     "Операциялар": ["Операциялар менеджері", "Процесс аналитигі", "Кеңсе үйлестірушісі"],
     "Сату": ["Сату менеджері", "Клиент менеджері", "Клиент қолдау маманы"],

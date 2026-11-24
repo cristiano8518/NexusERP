@@ -1,8 +1,8 @@
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
-from .models import Role, SecurityLog, User
 from .audit_models import AuditLog
+from .models import Role, SecurityLog, User
 
 
 class UserSerializer(serializers.ModelSerializer):

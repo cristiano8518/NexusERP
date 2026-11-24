@@ -6,7 +6,7 @@ from django.db.models import Count, DecimalField, F, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from apps.accounts.models import Role, User
+from apps.accounts.models import Role
 from apps.employees.models import Department, Employee
 from apps.finance.models import FinanceEntry
 from apps.tasks.models import Task

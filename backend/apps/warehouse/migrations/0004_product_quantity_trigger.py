@@ -1,6 +1,5 @@
 from django.db import migrations
 
-
 CREATE_TRIGGER = """
 CREATE OR REPLACE FUNCTION prevent_negative_product_quantity()
 RETURNS trigger AS $$

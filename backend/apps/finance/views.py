@@ -1,10 +1,8 @@
 from rest_framework import viewsets
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 
 from common.audit import log_audit_event
 from common.rbac import Perm
-from common.rbac.checker import PermissionChecker
 from common.rbac.drf_permissions import require_any_permission, require_permission
 from common.rbac.scope import scope_queryset
 
