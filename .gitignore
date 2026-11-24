@@ -58,3 +58,6 @@ Thumbs.db
 
 # Backups
 backups/
+
+# Test / coverage reports
+coverage.xml
